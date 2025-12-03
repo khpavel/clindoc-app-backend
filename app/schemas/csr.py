@@ -1,0 +1,48 @@
+from datetime import datetime
+
+from pydantic import BaseModel
+
+
+class CsrSectionBase(BaseModel):
+    code: str
+    title: str
+    order_index: int
+
+
+class CsrSectionRead(CsrSectionBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+
+class CsrSectionVersionBase(BaseModel):
+    text: str
+
+
+class CsrSectionVersionCreate(BaseModel):
+    text: str
+    created_by: str | None = None
+
+
+class CsrSectionVersionRead(CsrSectionVersionBase):
+    id: int
+    text: str
+    created_at: datetime
+    created_by: str | None
+    source: str
+
+    class Config:
+        orm_mode = True
+
+
+class CsrDocumentRead(BaseModel):
+    id: int
+    study_id: int
+    title: str
+    status: str
+    sections: list["CsrSectionRead"] | None = None
+
+    class Config:
+        orm_mode = True
+
