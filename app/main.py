@@ -29,7 +29,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 Base.metadata.create_all(bind=engine)
 
 # Include routers
-app.include_router(studies_router, tags=["studies"])
+app.include_router(studies_router, prefix="/api/v1", tags=["studies"])
 app.include_router(csr_router, prefix="/api/v1", tags=["csr"])
 app.include_router(ai_router, prefix="/api/v1", tags=["ai"])
 app.include_router(sources_router, prefix="/api/v1", tags=["sources"])
