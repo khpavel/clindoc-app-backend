@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     secret_key: str  # SECRET_KEY - used for signing JWT tokens
     algorithm: str = "HS256"  # ALGORITHM - JWT signing algorithm
     access_token_expire_minutes: int = 60  # ACCESS_TOKEN_EXPIRE_MINUTES - token expiration time
+    
+    # Storage settings
+    storage_dir: str = "storage"  # STORAGE_DIR - base directory for uploaded source documents
 
     class Config:
         env_file = _get_env_file_list()
