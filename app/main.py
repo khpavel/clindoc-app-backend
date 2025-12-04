@@ -15,12 +15,13 @@ logger = logging.getLogger(__name__)
 
 from app.db.session import engine, Base
 # Import models to ensure they're registered with SQLAlchemy Base
-from app.models import user, study, csr, source  # noqa: F401
+from app.models import user, study, csr, source, template  # noqa: F401
 from app.api.v1.auth import router as auth_router
 from app.api.v1.studies import router as studies_router
 from app.api.v1.csr import router as csr_router
 from app.api.v1.ai import router as ai_router
 from app.api.v1.sources import router as sources_router
+from app.api.v1.templates import router as templates_router
 
 app = FastAPI(
     title="CSR Assistant Backend",
@@ -84,6 +85,7 @@ app.include_router(studies_router, prefix="/api/v1", tags=["studies"])
 app.include_router(csr_router, prefix="/api/v1", tags=["csr"])
 app.include_router(ai_router, prefix="/api/v1", tags=["ai"])
 app.include_router(sources_router, prefix="/api/v1", tags=["sources"])
+app.include_router(templates_router, prefix="/api/v1", tags=["templates"])
 
 
 @app.get("/health")

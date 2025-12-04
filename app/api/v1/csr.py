@@ -7,13 +7,18 @@ from sqlalchemy import desc
 from app.db.session import get_db
 from app.models.study import Study
 from app.models.csr import CsrDocument, CsrSection, CsrSectionVersion
+from app.models.template import Template
 from app.schemas.csr import (
     CsrDocumentRead,
     CsrSectionRead,
     CsrSectionVersionCreate,
     CsrSectionVersionRead,
+    ApplyTemplateRequest,
 )
 from app.services.csr_defaults import ensure_csr_document_with_default_sections
+from app.services.template_renderer import render_template_content
+from app.deps.auth import get_current_active_user
+from app.models.user import User
 
 router = APIRouter(prefix="/csr", tags=["csr"])
 
@@ -144,6 +149,93 @@ def create_section_version(
         text=version_in.text,
         created_by=version_in.created_by,
         source="human",
+    )
+    db.add(version)
+    db.commit()
+    db.refresh(version)
+    
+    return version
+
+
+@router.post(
+    "/sections/{section_id}/apply-template",
+    response_model=CsrSectionVersionRead,
+    status_code=status.HTTP_201_CREATED
+)
+def apply_template_to_section(
+    section_id: int,
+    body: ApplyTemplateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Apply a text template to a CSR section.
+    
+    Ensures that the section exists and belongs to the study_id from the request.
+    Loads the template, builds context from study data, renders the template,
+    and creates a new CsrSectionVersion with the rendered text.
+    """
+    # Verify that the section exists
+    section = db.query(CsrSection).filter(CsrSection.id == section_id).first()
+    if not section:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Section not found"
+        )
+    
+    # Verify that the section belongs to the study_id from the request
+    document = db.query(CsrDocument).filter(CsrDocument.id == section.document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CSR document not found for this section"
+        )
+    
+    if document.study_id != body.study_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Section does not belong to the specified study"
+        )
+    
+    # Load template by template_id
+    template = db.query(Template).filter(Template.id == body.template_id).first()
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Template not found"
+        )
+    
+    # Load study by study_id
+    study = db.query(Study).filter(Study.id == body.study_id).first()
+    if not study:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Study not found"
+        )
+    
+    # Build context dict (same as in /templates/{id}/render)
+    context = {
+        "study_code": study.code,
+        "study_title": study.title,
+        "study_phase": study.phase,
+    }
+    
+    # Merge with extra_context if provided
+    if body.extra_context:
+        context.update(body.extra_context)
+    
+    # Render template
+    rendered_text, used_variables, missing_variables = render_template_content(
+        template, context
+    )
+    
+    # Create a new CsrSectionVersion with rendered text
+    version = CsrSectionVersion(
+        section_id=section_id,
+        text=rendered_text,
+        source="template",
+        template_id=template.id,
+        created_by=current_user.username,
     )
     db.add(version)
     db.commit()

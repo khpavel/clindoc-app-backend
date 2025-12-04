@@ -30,9 +30,16 @@ class CsrSectionVersionRead(CsrSectionVersionBase):
     created_at: datetime
     created_by: str | None = None
     source: str | None = None
+    template_id: int | None = None
 
     class Config:
         orm_mode = True
+
+
+class ApplyTemplateRequest(BaseModel):
+    study_id: int
+    template_id: int
+    extra_context: dict | None = None
 
 
 class CsrDocumentRead(BaseModel):

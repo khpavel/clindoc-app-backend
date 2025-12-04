@@ -5,6 +5,21 @@ All endpoints are prefixed with `/api/v1`
 
 ---
 
+## Health Check
+
+### Health Check
+**Method:** `GET`  
+**Path:** `/health`
+
+**Response Body:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
 ## Authentication Endpoints
 
 ### Register User
@@ -112,12 +127,14 @@ All endpoints are prefixed with `/api/v1`
 
 ## CSR Endpoints
 
+> **Authorization:** Not required at this time.
+
 ### Get CSR Document
 **Method:** `GET`  
-**Path:** `/api/v1/csr/{document_id}`
+**Path:** `/api/v1/csr/{study_id}`
 
 **Path Parameters:**
-- `document_id` (integer, required): The ID of the CSR document
+- `study_id` (integer, required): The ID of the study
 
 **Response Body:**
 ```json
@@ -137,8 +154,59 @@ All endpoints are prefixed with `/api/v1`
 }
 ```
 
+**Notes:**
+- If the CSR document doesn't exist for the study, it will be automatically created with default sections.
+
 **Error Responses:**
-- `404`: Document not found
+- `404`: Study not found
+
+### Get CSR Sections
+**Method:** `GET`  
+**Path:** `/api/v1/csr/{study_id}/sections`
+
+**Path Parameters:**
+- `study_id` (integer, required): The ID of the study
+
+**Response Body:**
+```json
+[
+  {
+    "id": 0,
+    "code": "string",
+    "title": "string",
+    "order_index": 0
+  }
+]
+```
+
+**Notes:**
+- Returns all sections for the CSR document of the study, ordered by `order_index`.
+- If the CSR document doesn't exist for the study, it will be automatically created with default sections.
+
+**Error Responses:**
+- `404`: Study not found
+
+### Get Latest Section Version
+**Method:** `GET`  
+**Path:** `/api/v1/csr/sections/{section_id}/versions/latest`
+
+**Path Parameters:**
+- `section_id` (integer, required): The ID of the CSR section
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "text": "string",
+  "created_at": "2024-01-01T00:00:00Z",
+  "created_by": "string | null",
+  "source": "string | null"
+}
+```
+
+**Error Responses:**
+- `404`: Section not found
+- `404`: No versions found for this section
 
 ### Create Section Version
 **Method:** `POST`  
@@ -162,9 +230,13 @@ All endpoints are prefixed with `/api/v1`
   "text": "string",
   "created_at": "2024-01-01T00:00:00Z",
   "created_by": "string | null",
-  "source": "string"
+  "source": "string | null"
 }
 ```
+
+**Notes:**
+- Creates a new version with `source="human"`.
+- Returns status code `201 Created`.
 
 **Error Responses:**
 - `404`: Section not found
@@ -172,6 +244,8 @@ All endpoints are prefixed with `/api/v1`
 ---
 
 ## AI Endpoints
+
+> **Authorization:** Not required at this time.
 
 ### Generate Section Text
 **Method:** `POST`  
@@ -193,6 +267,9 @@ All endpoints are prefixed with `/api/v1`
   "model": "string"
 }
 ```
+
+**Notes:**
+- This is currently a stub implementation that will later be replaced with a real LLM call.
 
 ---
 
@@ -216,12 +293,16 @@ All endpoints are prefixed with `/api/v1`
 ```json
 {
   "id": 0,
+  "study_id": 0,
   "type": "string",
-  "file_name": "string"
+  "file_name": "string",
+  "uploaded_at": "2024-01-01T00:00:00Z",
+  "uploaded_by": "string | null"
 }
 ```
 
 **Error Responses:**
+- `400`: File must have a filename
 - `404`: Study not found
 - `500`: Failed to save file
 
@@ -237,11 +318,17 @@ All endpoints are prefixed with `/api/v1`
 [
   {
     "id": 0,
+    "study_id": 0,
     "type": "string",
-    "file_name": "string"
+    "file_name": "string",
+    "uploaded_at": "2024-01-01T00:00:00Z",
+    "uploaded_by": "string | null"
   }
 ]
 ```
+
+**Notes:**
+- Documents are ordered by `uploaded_at` in descending order (most recent first).
 
 **Error Responses:**
 - `404`: Study not found

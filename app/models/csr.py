@@ -47,7 +47,8 @@ class CsrSectionVersion(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    source: Mapped[str | None] = mapped_column(String(30), nullable=True)  # e.g. "human", "ai"
+    source: Mapped[str | None] = mapped_column(String(30), nullable=True)  # e.g. "human", "ai", "template"
+    template_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("templates.id"), nullable=True)
 
     # Relationships
     section: Mapped["CsrSection"] = relationship("CsrSection", back_populates="versions")
