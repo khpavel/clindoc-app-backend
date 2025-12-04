@@ -1,5 +1,9 @@
 import os
+import logging
 from pydantic_settings import BaseSettings
+from pydantic import ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 def _get_env_file_list() -> list[str]:
@@ -43,4 +47,19 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 
-settings = Settings()
+try:
+    settings = Settings()
+except ValidationError as e:
+    env_files = _get_env_file_list()
+    missing_files = [f for f in env_files if not os.path.exists(f)]
+    logger.error(
+        f"Failed to load settings. Missing required environment variables. "
+        f"Required: database_url, secret_key. "
+        f"Looking for env files: {env_files}. "
+        f"Missing files: {missing_files}. "
+        f"Error details: {e}"
+    )
+    raise
+except Exception as e:
+    logger.error(f"Unexpected error loading settings: {e}", exc_info=True)
+    raise

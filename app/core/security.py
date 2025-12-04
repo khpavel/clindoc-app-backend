@@ -1,23 +1,54 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
+import bcrypt
 from jose import jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def get_password_hash(password: str) -> str:
-    """Hash a password using bcrypt."""
-    return pwd_context.hash(password)
+    """Hash a password using bcrypt.
+    
+    Note: bcrypt has a 72-byte limit on password length.
+    Passwords longer than 72 bytes will be truncated.
+    """
+    # Bcrypt has a 72-byte limit, so truncate if necessary
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        # Truncate to 72 bytes, ensuring we don't cut in the middle of a UTF-8 character
+        password_bytes = password_bytes[:72]
+        # Remove any incomplete UTF-8 sequences at the end
+        while password_bytes and (password_bytes[-1] & 0x80) and not (password_bytes[-1] & 0x40):
+            password_bytes = password_bytes[:-1]
+    
+    # Use bcrypt directly instead of passlib to avoid initialization issues
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify a password against its hash.
+    
+    Note: bcrypt has a 72-byte limit on password length.
+    Passwords longer than 72 bytes will be truncated before verification.
+    """
+    # Bcrypt has a 72-byte limit, so truncate if necessary
+    password_bytes = plain_password.encode('utf-8')
+    if len(password_bytes) > 72:
+        # Truncate to 72 bytes, ensuring we don't cut in the middle of a UTF-8 character
+        password_bytes = password_bytes[:72]
+        # Remove any incomplete UTF-8 sequences at the end
+        while password_bytes and (password_bytes[-1] & 0x80) and not (password_bytes[-1] & 0x40):
+            password_bytes = password_bytes[:-1]
+    
+    # Use bcrypt directly instead of passlib to avoid initialization issues
+    hashed_bytes = hashed_password.encode('utf-8')
+    try:
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except (ValueError, TypeError):
+        return False
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

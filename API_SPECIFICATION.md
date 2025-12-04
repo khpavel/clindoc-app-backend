@@ -5,6 +5,111 @@ All endpoints are prefixed with `/api/v1`
 
 ---
 
+## Authentication Endpoints
+
+### Register User
+**Method:** `POST`  
+**Path:** `/api/v1/auth/register`
+
+**Request Body:**
+```json
+{
+  "username": "string",
+  "full_name": "string | null",
+  "email": "string | null",
+  "password": "string"
+}
+```
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "username": "string",
+  "full_name": "string | null",
+  "email": "string | null",
+  "is_active": true
+}
+```
+
+**Error Responses:**
+- `400`: Username (or email) already registered
+
+### Obtain Access Token
+**Method:** `POST`  
+**Path:** `/api/v1/auth/token`
+
+**Request Body:**
+- Content-Type: `application/x-www-form-urlencoded`
+- `username` (string, required)
+- `password` (string, required)
+
+**Response Body:**
+```json
+{
+  "access_token": "string",
+  "token_type": "bearer"
+}
+```
+
+**Error Responses:**
+- `401`: Incorrect username or password
+- `403`: User inactive
+
+---
+
+## Studies Endpoints
+
+> **Authorization:** Requires `Authorization: Bearer <token>` header obtained from the Auth endpoints.
+
+### Create Study
+**Method:** `POST`  
+**Path:** `/api/v1/studies`
+
+**Request Body:**
+```json
+{
+  "code": "string",
+  "title": "string",
+  "phase": "string | null"
+}
+```
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "code": "string",
+  "title": "string",
+  "phase": "string | null"
+}
+```
+
+**Error Responses:**
+- `400`: Study with this code already exists
+- `401/403`: Missing or invalid token
+
+### List Studies
+**Method:** `GET`  
+**Path:** `/api/v1/studies`
+
+**Response Body:**
+```json
+[
+  {
+    "id": 0,
+    "code": "string",
+    "title": "string",
+    "phase": "string | null"
+  }
+]
+```
+
+**Error Responses:**
+- `401/403`: Missing or invalid token
+
+---
+
 ## CSR Endpoints
 
 ### Create Section Version
@@ -65,6 +170,8 @@ All endpoints are prefixed with `/api/v1`
 
 ## Sources Endpoints
 
+> **Authorization:** Not required at this time.
+
 ### Upload Source Document
 **Method:** `POST`  
 **Path:** `/api/v1/sources/{study_id}/upload`
@@ -116,6 +223,6 @@ All endpoints are prefixed with `/api/v1`
 ## Notes
 
 - All datetime fields are in ISO 8601 format (UTC)
-- All endpoints return JSON responses
+- All endpoints return JSON responses unless otherwise specified (e.g., token form data input)
 - Error responses follow the format: `{"detail": "error message"}`
 

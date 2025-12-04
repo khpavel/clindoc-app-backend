@@ -1,7 +1,17 @@
 import logging
+import sys
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
+logger = logging.getLogger(__name__)
 
 from app.db.session import engine, Base
 # Import models to ensure they're registered with SQLAlchemy Base
@@ -12,11 +22,13 @@ from app.api.v1.csr import router as csr_router
 from app.api.v1.ai import router as ai_router
 from app.api.v1.sources import router as sources_router
 
-logger = logging.getLogger(__name__)
-
 app = FastAPI(
     title="CSR Assistant Backend",
     version="0.1.0",
+    description="Backend API for CSR Assistant application",
+    docs_url="/docs",  # Swagger UI endpoint
+    redoc_url="/redoc",  # ReDoc endpoint
+    openapi_url="/openapi.json",  # OpenAPI schema endpoint
 )
 
 # CORS configuration
@@ -36,7 +48,21 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.error(
+        f"Unhandled exception on {request.method} {request.url.path}: {exc}",
+        exc_info=True
+    )
+    # In development, return more details about the error
+    import os
+    if os.environ.get("APP_ENV", "dev").lower() == "dev":
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": "Internal server error",
+                "error": str(exc),
+                "type": type(exc).__name__
+            }
+        )
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"}
@@ -44,7 +70,13 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # create tables on startup (for MVP; later replace with Alembic)
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables created/verified successfully")
+except Exception as e:
+    logger.error(f"Failed to create database tables: {e}", exc_info=True)
+    # Don't raise here - let the app start, but database operations will fail
+    # This allows the app to start even if DB is temporarily unavailable
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
