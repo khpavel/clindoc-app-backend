@@ -112,6 +112,34 @@ All endpoints are prefixed with `/api/v1`
 
 ## CSR Endpoints
 
+### Get CSR Document
+**Method:** `GET`  
+**Path:** `/api/v1/csr/{document_id}`
+
+**Path Parameters:**
+- `document_id` (integer, required): The ID of the CSR document
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "study_id": 0,
+  "title": "string",
+  "status": "string",
+  "sections": [
+    {
+      "id": 0,
+      "code": "string",
+      "title": "string",
+      "order_index": 0
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `404`: Document not found
+
 ### Create Section Version
 **Method:** `POST`  
 **Path:** `/api/v1/csr/sections/{section_id}/versions`

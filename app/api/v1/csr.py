@@ -4,10 +4,22 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.csr import CsrSection, CsrSectionVersion
-from app.schemas.csr import CsrSectionVersionCreate, CsrSectionVersionRead
+from app.models.csr import CsrDocument, CsrSection, CsrSectionVersion
+from app.schemas.csr import CsrDocumentRead, CsrSectionVersionCreate, CsrSectionVersionRead
 
 router = APIRouter()
+
+
+@router.get("/csr/{document_id}", response_model=CsrDocumentRead)
+def get_csr_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+):
+    """Get a CSR document by ID with its sections."""
+    document = db.query(CsrDocument).filter(CsrDocument.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return document
 
 
 @router.post("/csr/sections/{section_id}/versions", response_model=CsrSectionVersionRead)
