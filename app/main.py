@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 from app.db.session import engine, Base
 # Import models to ensure they're registered with SQLAlchemy Base
-from app.models import user  # noqa: F401
+from app.models import user, study, csr, source  # noqa: F401
 from app.api.v1.auth import router as auth_router
 from app.api.v1.studies import router as studies_router
 from app.api.v1.csr import router as csr_router

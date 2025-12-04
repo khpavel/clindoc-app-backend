@@ -147,3 +147,4 @@ fetch(`${API_BASE_URL}/api/v1/auth/token`, {
 
 Для работы с миграциями используется Alembic. См. документацию Alembic для подробностей.
 
+

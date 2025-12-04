@@ -27,10 +27,9 @@ class CsrSectionVersionCreate(BaseModel):
 
 class CsrSectionVersionRead(CsrSectionVersionBase):
     id: int
-    text: str
     created_at: datetime
-    created_by: str | None
-    source: str
+    created_by: str | None = None
+    source: str | None = None
 
     class Config:
         orm_mode = True
@@ -41,8 +40,7 @@ class CsrDocumentRead(BaseModel):
     study_id: int
     title: str
     status: str
-    sections: list["CsrSectionRead"] | None = None
+    sections: list[CsrSectionRead] = []
 
     class Config:
         orm_mode = True
-
