@@ -5,3 +5,7 @@ psycopg2-binary
 pydantic-settings
 python-dotenv
 alembic
+# auth / JWT
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart

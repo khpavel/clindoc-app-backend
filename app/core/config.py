@@ -30,6 +30,11 @@ def _get_env_file_list() -> list[str]:
 class Settings(BaseSettings):
     app_env: str = "dev"  # Environment name (dev/prod), can be overridden via APP_ENV env var
     database_url: str
+    
+    # JWT Authentication settings
+    secret_key: str  # SECRET_KEY - used for signing JWT tokens
+    algorithm: str = "HS256"  # ALGORITHM - JWT signing algorithm
+    access_token_expire_minutes: int = 60  # ACCESS_TOKEN_EXPIRE_MINUTES - token expiration time
 
     class Config:
         env_file = _get_env_file_list()

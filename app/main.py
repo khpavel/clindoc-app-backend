@@ -4,6 +4,9 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.session import engine, Base
+# Import models to ensure they're registered with SQLAlchemy Base
+from app.models import user  # noqa: F401
+from app.api.v1.auth import router as auth_router
 from app.api.v1.studies import router as studies_router
 from app.api.v1.csr import router as csr_router
 from app.api.v1.ai import router as ai_router
@@ -44,6 +47,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 Base.metadata.create_all(bind=engine)
 
 # Include routers
+app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
 app.include_router(studies_router, prefix="/api/v1", tags=["studies"])
 app.include_router(csr_router, prefix="/api/v1", tags=["csr"])
 app.include_router(ai_router, prefix="/api/v1", tags=["ai"])
