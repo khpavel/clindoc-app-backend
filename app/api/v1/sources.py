@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import List, Optional
 
@@ -9,6 +10,9 @@ from app.db.session import get_db
 from app.models.source import SourceDocument
 from app.models.study import Study
 from app.schemas.source import SourceDocumentRead
+from app.services.rag_ingest import ingest_source_document_to_rag
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
@@ -79,6 +83,14 @@ async def upload_source_document(
     db.add(source_doc)
     db.commit()
     db.refresh(source_doc)
+    
+    # Trigger RAG ingestion after document is saved
+    try:
+        chunks_count = ingest_source_document_to_rag(db, source_doc.id)
+        logger.debug(f"RAG ingestion completed for source_document_id={source_doc.id}, created {chunks_count} chunks")
+    except Exception as e:
+        # Log but don't fail the upload if ingestion fails
+        logger.error(f"RAG ingestion failed for source_document_id={source_doc.id}: {e}", exc_info=True)
     
     return source_doc
 

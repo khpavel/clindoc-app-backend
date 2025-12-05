@@ -22,6 +22,7 @@ from app.api.v1.csr import router as csr_router
 from app.api.v1.ai import router as ai_router
 from app.api.v1.sources import router as sources_router
 from app.api.v1.templates import router as templates_router
+from app.api.v1.rag import router as rag_router
 
 app = FastAPI(
     title="CSR Assistant Backend",
@@ -86,6 +87,7 @@ app.include_router(csr_router, prefix="/api/v1", tags=["csr"])
 app.include_router(ai_router, prefix="/api/v1", tags=["ai"])
 app.include_router(sources_router, prefix="/api/v1", tags=["sources"])
 app.include_router(templates_router, prefix="/api/v1", tags=["templates"])
+app.include_router(rag_router, prefix="/api/v1", tags=["rag"])
 
 
 @app.get("/health")
