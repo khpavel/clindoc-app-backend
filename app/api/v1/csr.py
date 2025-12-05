@@ -16,6 +16,7 @@ from app.schemas.csr import (
     ApplyTemplateRequest,
 )
 from app.services.csr_defaults import ensure_csr_document_with_default_sections
+from app.services.template_context import build_template_context
 from app.services.template_renderer import render_template_content
 from app.deps.auth import get_current_active_user
 from app.models.user import User
@@ -205,24 +206,19 @@ def apply_template_to_section(
             detail="Template not found"
         )
     
-    # Load study by study_id
-    study = db.query(Study).filter(Study.id == body.study_id).first()
-    if not study:
+    # Build context using the generic helper (same as /templates/{id}/render)
+    try:
+        context = build_template_context(
+            db, 
+            study_id=body.study_id, 
+            extra_context=body.extra_context or {}
+        )
+    except ValueError as e:
+        # build_template_context raises ValueError if study not found
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Study not found"
+            detail=str(e)
         )
-    
-    # Build context dict (same as in /templates/{id}/render)
-    context = {
-        "study_code": study.code,
-        "study_title": study.title,
-        "study_phase": study.phase,
-    }
-    
-    # Merge with extra_context if provided
-    if body.extra_context:
-        context.update(body.extra_context)
     
     # Render template
     rendered_text, used_variables, missing_variables = render_template_content(

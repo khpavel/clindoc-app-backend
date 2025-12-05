@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -37,9 +38,9 @@ class CsrSectionVersionRead(CsrSectionVersionBase):
 
 
 class ApplyTemplateRequest(BaseModel):
-    study_id: int
     template_id: int
-    extra_context: dict | None = None
+    study_id: int
+    extra_context: dict[str, Any] | None = None
 
 
 class CsrDocumentRead(BaseModel):

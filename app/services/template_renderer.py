@@ -4,22 +4,20 @@ from typing import Any
 from app.models.template import Template
 
 
-def render_template_content(
-    template: Template,
+def render_template_string(
+    template_text: str,
     context: dict[str, Any],
 ) -> tuple[str, dict[str, Any], list[str]]:
     """
-    Renders template.content by replacing {{var}} placeholders using the given context.
+    Replace {{variable}} placeholders in template_text using values from context.
 
     Returns (rendered_text, used_variables, missing_variables).
     """
-    content = template.content
-    used_variables: dict[str, Any] = {}
+    used_variables: dict[str, str] = {}
     missing_variables: list[str] = []
     
-    # Pattern to match {{variable_name}} placeholders
-    # Matches {{ followed by variable name (alphanumeric + underscore) followed by }}
-    pattern = r'\{\{(\w+)\}\}'
+    # Pattern to match {{variable_name}} where variable_name is [a-zA-Z0-9_]+
+    pattern = r'\{\{([a-zA-Z0-9_]+)\}\}'
     
     def replace_placeholder(match: re.Match[str]) -> str:
         """Replace a single placeholder with its value or keep it if missing."""
@@ -27,17 +25,27 @@ def render_template_content(
         
         if var_name in context:
             value = context[var_name]
-            used_variables[var_name] = value
-            return str(value)
+            # Convert value to string for used_variables (None becomes empty string)
+            used_variables[var_name] = "" if value is None else str(value)
+            return str(value) if value is not None else ""
         else:
-            missing_variables.append(var_name)
-            return match.group(0)  # Keep the placeholder as is
+            # Only add to missing_variables if not already present
+            if var_name not in missing_variables:
+                missing_variables.append(var_name)
+            return match.group(0)  # Keep the placeholder unchanged
     
     # Replace all placeholders
-    rendered_text = re.sub(pattern, replace_placeholder, content)
-    
-    # Remove duplicates from missing_variables while preserving order
-    missing_variables = list(dict.fromkeys(missing_variables))
+    rendered_text = re.sub(pattern, replace_placeholder, template_text)
     
     return rendered_text, used_variables, missing_variables
+
+
+def render_template_content(
+    template: Template,
+    context: dict[str, Any],
+) -> tuple[str, dict[str, Any], list[str]]:
+    """
+    Convenience wrapper around render_template_string for Template instances.
+    """
+    return render_template_string(template.content, context)
 

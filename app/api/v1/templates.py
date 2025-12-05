@@ -5,12 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.template import Template
-from app.models.study import Study
 from app.schemas.template import (
     TemplateRead,
     TemplateRenderRequest,
     TemplateRenderResponse,
 )
+from app.services.template_context import build_template_context
 from app.services.template_renderer import render_template_content
 
 router = APIRouter(prefix="/templates", tags=["templates"])
@@ -52,7 +52,7 @@ def get_templates_by_section(
 @router.post("/{template_id}/render", response_model=TemplateRenderResponse)
 def render_template(
     template_id: int,
-    request: TemplateRenderRequest,
+    body: TemplateRenderRequest,
     db: Session = Depends(get_db),
 ):
     """
@@ -69,33 +69,15 @@ def render_template(
             detail="Template not found"
         )
     
-    # Load study by study_id
-    study = db.query(Study).filter(Study.id == request.study_id).first()
-    if not study:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Study not found"
-        )
-    
-    # Build context dict
-    context = {
-        "study_code": study.code,
-        "study_title": study.title,
-        "study_phase": study.phase,
-    }
-    
-    # Merge with extra_context if provided
-    if request.extra_context:
-        context.update(request.extra_context)
+    # Build the base context
+    ctx = build_template_context(db, body.study_id, extra_context=body.extra_context or {})
     
     # Render template
-    rendered_text, used_variables, missing_variables = render_template_content(
-        template, context
-    )
+    rendered_text, used_vars, missing_vars = render_template_content(template, ctx)
     
     return TemplateRenderResponse(
         rendered_text=rendered_text,
-        used_variables=used_variables if used_variables else None,
-        missing_variables=missing_variables if missing_variables else None,
+        used_variables=used_vars,
+        missing_variables=missing_vars,
     )
 
