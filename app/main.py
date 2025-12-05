@@ -3,6 +3,7 @@ import sys
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 
 # Configure logging
 logging.basicConfig(
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 from app.db.session import engine, Base
 # Import models to ensure they're registered with SQLAlchemy Base
-from app.models import user, study, csr, source, template  # noqa: F401
+from app.models import user, study, csr, source, template, rag, ai  # noqa: F401
 from app.api.v1.auth import router as auth_router
 from app.api.v1.studies import router as studies_router
 from app.api.v1.csr import router as csr_router
@@ -32,6 +33,40 @@ app = FastAPI(
     redoc_url="/redoc",  # ReDoc endpoint
     openapi_url="/openapi.json",  # OpenAPI schema endpoint
 )
+
+
+def custom_openapi():
+    """Custom OpenAPI schema with proper security configuration for Swagger UI."""
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    
+    # Ensure securitySchemes section exists
+    if "components" not in openapi_schema:
+        openapi_schema["components"] = {}
+    if "securitySchemes" not in openapi_schema["components"]:
+        openapi_schema["components"]["securitySchemes"] = {}
+    
+    # HTTPBearer automatically adds security scheme, but we ensure it's properly configured
+    # The scheme name will be "HTTPBearer" by default
+    # Update description for better UX in Swagger UI
+    if "HTTPBearer" in openapi_schema["components"]["securitySchemes"]:
+        openapi_schema["components"]["securitySchemes"]["HTTPBearer"]["description"] = (
+            "Enter JWT token obtained from /api/v1/auth/token endpoint. "
+            "Click 'Authorize' button and enter your token (without 'Bearer' prefix)."
+        )
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 # CORS configuration
 origins = [

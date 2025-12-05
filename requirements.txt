@@ -12,3 +12,8 @@ python-multipart
 # testing
 pytest
 httpx
+# document parsing
+pypdf
+python-docx
+openpyxl
+xlrd

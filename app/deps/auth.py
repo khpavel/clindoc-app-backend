@@ -1,7 +1,7 @@
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 
@@ -10,11 +10,12 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.user import TokenData
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+# Use HTTPBearer for simpler Swagger UI integration
+http_bearer = HTTPBearer()
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(http_bearer),
     db: Session = Depends(get_db)
 ) -> User:
     """Get the current authenticated user from JWT token."""
@@ -23,6 +24,8 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    token = credentials.credentials
     
     try:
         payload = jwt.decode(

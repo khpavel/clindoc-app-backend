@@ -84,13 +84,14 @@ async def upload_source_document(
     db.commit()
     db.refresh(source_doc)
     
-    # Trigger RAG ingestion after document is saved
+    # Trigger automatic RAG ingestion after document is saved
     try:
+        logger.info(f"Starting automatic RAG ingestion for source_document_id={source_doc.id}, file={file.filename}")
         chunks_count = ingest_source_document_to_rag(db, source_doc.id)
-        logger.debug(f"RAG ingestion completed for source_document_id={source_doc.id}, created {chunks_count} chunks")
+        logger.info(f"RAG ingestion completed successfully for source_document_id={source_doc.id}, created {chunks_count} chunks")
     except Exception as e:
         # Log but don't fail the upload if ingestion fails
-        logger.error(f"RAG ingestion failed for source_document_id={source_doc.id}: {e}", exc_info=True)
+        logger.error(f"RAG ingestion failed for source_document_id={source_doc.id}, file={file.filename}: {e}", exc_info=True)
     
     return source_doc
 
