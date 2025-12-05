@@ -18,7 +18,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from app.db.session import Base
 # Import all models so they are registered with Base.metadata
-from app.models import study, csr, source, template  # noqa: F401
+from app.models import ai, study, csr, source, template  # noqa: F401
 
 target_metadata = Base.metadata
 
