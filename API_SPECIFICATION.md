@@ -108,6 +108,7 @@ All endpoints are prefixed with `/api/v1`
 
 **Notes:**
 - `status` defaults to `"draft"` if not provided
+- Valid status values: `"draft"`, `"ongoing"`, `"closed"`, `"archived"`
 - The creator is automatically added as a study member with role `"owner"`
 
 **Error Responses:**
@@ -138,6 +139,35 @@ All endpoints are prefixed with `/api/v1`
 
 **Error Responses:**
 - `401/403`: Missing or invalid token
+
+### Get Study
+**Method:** `GET`  
+**Path:** `/api/v1/studies/{study_id}`
+
+**Path Parameters:**
+- `study_id` (integer, required): The ID of the study
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "code": "string",
+  "title": "string",
+  "phase": "string | null",
+  "status": "string",
+  "indication": "string | null",
+  "sponsor_name": "string | null"
+}
+```
+
+**Notes:**
+- Only members of the study can view it
+- Returns 404 if study doesn't exist
+- Returns 403 if user is not a member of the study
+
+**Error Responses:**
+- `403`: Access denied (user is not a member of the study)
+- `404`: Study not found
 
 ### List Study Members
 **Method:** `GET`  
@@ -485,7 +515,9 @@ All endpoints are prefixed with `/api/v1`
 **Request Body:**
 - Content-Type: `multipart/form-data`
 - `file` (file, required): The document file to upload
-- `type` (string, required): The type/category of the source document
+- `type` (string, required): The type/category of the source document (e.g., "protocol", "sap", "tlf", "csr_prev")
+- `language` (string, optional): Language code ("ru" or "en"), default "ru"
+- `version_label` (string, optional): Version label for the document
 
 **Response Body:**
 ```json
@@ -495,12 +527,23 @@ All endpoints are prefixed with `/api/v1`
   "type": "string",
   "file_name": "string",
   "uploaded_at": "2024-01-01T00:00:00Z",
-  "uploaded_by": "string | null"
+  "uploaded_by": "string | null",
+  "language": "string",
+  "version_label": "string | null",
+  "status": "string",
+  "is_current": true,
+  "is_rag_enabled": true,
+  "index_status": "string"
 }
 ```
 
+**Notes:**
+- When uploading a new document with the same `type` and `language`, previous documents are automatically marked as `is_current=false`
+- The uploaded document is automatically indexed for RAG if `is_rag_enabled=true` (default)
+- `index_status` is set to "not_indexed" initially, then updated to "indexed" after successful RAG ingestion
+
 **Error Responses:**
-- `400`: File must have a filename
+- `400`: File must have a filename, or language must be 'ru' or 'en'
 - `404`: Study not found
 - `500`: Failed to save file
 
@@ -520,18 +563,108 @@ All endpoints are prefixed with `/api/v1`
     "type": "string",
     "file_name": "string",
     "uploaded_at": "2024-01-01T00:00:00Z",
-    "uploaded_by": "string | null"
+    "uploaded_by": "string | null",
+    "language": "string",
+    "version_label": "string | null",
+    "status": "string",
+    "is_current": true,
+    "is_rag_enabled": true,
+    "index_status": "string"
   }
 ]
 ```
 
 **Notes:**
-- Documents are ordered by `uploaded_at` in descending order (most recent first).
-- After upload, the document is automatically indexed for RAG (text extraction and chunking)
+- Documents are ordered by `uploaded_at` in descending order (most recent first)
+- After upload, the document is automatically indexed for RAG (text extraction and chunking) if `is_rag_enabled=true`
+- `index_status` indicates the indexing state: "not_indexed", "indexed", or "error"
 
 **Error Responses:**
 - `401/403`: Missing or invalid token, or user is not a member of the study
 - `404`: Study not found
+
+### Delete Source Document
+**Method:** `DELETE`  
+**Path:** `/api/v1/sources/{source_document_id}`
+
+**Path Parameters:**
+- `source_document_id` (integer, required): The ID of the source document to delete
+
+**Response Body:**
+- No content (204 No Content)
+
+**Notes:**
+- Performs a soft delete of the source document
+- Sets `status="archived"`, `is_current=false`, `is_rag_enabled=false`, and `index_status="not_indexed"`
+- Deletes all associated RAG chunks for the document
+- Only study owners and editors can delete documents (viewers are not allowed)
+- The file is not physically deleted from storage
+- The document record remains in the database with archived status
+
+**Error Responses:**
+- `403`: Access denied (user is not a member of the study, or user is a viewer)
+- `404`: Source document not found
+
+### Permanently Delete Source Document
+**Method:** `DELETE`  
+**Path:** `/api/v1/sources/{source_document_id}/permanent`
+
+**Path Parameters:**
+- `source_document_id` (integer, required): The ID of the source document to permanently delete
+
+**Response Body:**
+- No content (204 No Content)
+
+**Notes:**
+- Permanently deletes a source document, its RAG chunks and stored file
+- Only study owners can perform permanent delete (editors and viewers are not allowed)
+- This action is irreversible:
+  - Deletes all associated RAG chunks from the database
+  - Physically deletes the file from storage
+  - Removes the SourceDocument record from the database
+- If file deletion fails, the database record is still deleted (error is logged)
+
+**Error Responses:**
+- `403`: Access denied (user is not a member of the study, or user is not an owner)
+- `404`: Source document not found
+
+### Restore Source Document
+**Method:** `POST`  
+**Path:** `/api/v1/sources/{source_document_id}/restore`
+
+**Path Parameters:**
+- `source_document_id` (integer, required): The ID of the source document to restore
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "study_id": 0,
+  "type": "string",
+  "file_name": "string",
+  "uploaded_at": "2024-01-01T00:00:00Z",
+  "uploaded_by": "string | null",
+  "language": "string",
+  "version_label": "string | null",
+  "status": "active",
+  "is_current": false,
+  "is_rag_enabled": true,
+  "index_status": "not_indexed"
+}
+```
+
+**Notes:**
+- Restores a previously archived source document back to active state
+- Sets `status="active"`, `is_rag_enabled=true`, `index_status="not_indexed"`
+- `is_current` is set to `false` by default, or `true` if there are no other active documents of the same (study_id, type, language)
+- Automatically triggers RAG ingestion to re-index the document
+- Only study owners and editors can restore documents (viewers are not allowed)
+- The document will become usable for RAG queries again once re-indexed
+
+**Error Responses:**
+- `400`: Document is not archived
+- `403`: Access denied (user is not a member of the study, or user is a viewer)
+- `404`: Source document not found
 
 ---
 
@@ -650,9 +783,9 @@ All endpoints are prefixed with `/api/v1`
 
 **Query Parameters:**
 - `source_type` (string, optional): Filter by source type (`protocol`, `sap`, `tlf`, `csr_prev`)
-- `q` (string, optional): Search query (substring search in chunk text)
-- `limit` (integer, optional): Maximum number of chunks to return (default: 50, max: 500)
-- `offset` (integer, optional): Number of chunks to skip (default: 0)
+- `q` (string, optional): Search query (case-insensitive substring search in chunk text using `ilike`)
+- `limit` (integer, optional): Maximum number of chunks to return (default: 50, max: 500, min: 1)
+- `offset` (integer, optional): Number of chunks to skip (default: 0, min: 0)
 
 **Response Body:**
 ```json
@@ -680,6 +813,8 @@ All endpoints are prefixed with `/api/v1`
 - Diagnostic endpoint to inspect RAG chunks
 - Chunks are ordered by `source_type` and `order_index`
 - Supports pagination with `limit` and `offset`
+- Returns `total_chunks` for implementing pagination on the client side
+- Text search (`q`) performs case-insensitive substring matching
 
 **Error Responses:**
 - `401/403`: Missing or invalid token, or user is not a member of the study

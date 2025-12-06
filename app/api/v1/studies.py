@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db.session import get_db
 from app.deps.auth import get_current_active_user
+from app.deps.study_access import get_study_for_user_or_403
 from app.models.study import Study
 from app.models.study_member import StudyMember
 from app.models.user import User
@@ -66,6 +67,23 @@ def list_studies(
         .all()
     )
     return studies
+
+
+@router.get("/studies/{study_id}", response_model=StudyRead)
+def get_study(
+    study_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    study: Study = Depends(get_study_for_user_or_403),
+):
+    """
+    Get a specific study by ID.
+    
+    Only members of the study can view it.
+    Returns 404 if study doesn't exist.
+    Returns 403 if user is not a member of the study.
+    """
+    return study
 
 
 @router.get(
