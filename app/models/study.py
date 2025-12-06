@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.models.csr import CsrDocument
     from app.models.source import SourceDocument
     from app.models.study_member import StudyMember
+    from app.models.document import Document
 
 
 class StudyStatus(str, Enum):
@@ -36,3 +37,4 @@ class Study(Base):
     csr_document: Mapped["CsrDocument | None"] = relationship("CsrDocument", back_populates="study", uselist=False)
     source_documents: Mapped[list["SourceDocument"]] = relationship("SourceDocument", back_populates="study", cascade="all, delete-orphan")
     members: Mapped[list["StudyMember"]] = relationship("StudyMember", back_populates="study", cascade="all, delete-orphan")
+    documents: Mapped[list["Document"]] = relationship("Document", back_populates="study", cascade="all, delete-orphan")

@@ -7,6 +7,7 @@ from sqlalchemy import desc
 from app.db.session import get_db
 from app.models.study import Study
 from app.models.csr import CsrDocument, CsrSection, CsrSectionVersion
+from app.models.document import Document
 from app.models.template import Template
 from app.schemas.csr import (
     CsrDocumentRead,
@@ -15,7 +16,7 @@ from app.schemas.csr import (
     CsrSectionVersionRead,
     ApplyTemplateRequest,
 )
-from app.services.csr_defaults import ensure_csr_document_with_default_sections
+from app.services.csr_document_link import get_or_create_csr_for_document, get_or_create_csr_for_study
 from app.services.template_context import build_template_context
 from app.services.template_renderer import render_template_content
 from app.services.docx_export import export_csr_to_docx
@@ -26,28 +27,95 @@ from app.models.user import User
 router = APIRouter(prefix="/csr", tags=["csr"])
 
 
+def get_document_for_user_or_403(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+) -> Document:
+    """
+    Dependency that verifies the current user has access to the document.
+    
+    Checks if the document exists and if the user is a member of the document's study.
+    Returns the Document if access is granted, raises 403/404 if not.
+    
+    Use this as a dependency for endpoints where document_id is a path parameter.
+    """
+    # Find the document
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    # Verify user has access to the study
+    verify_study_access(document.study_id, current_user.id, db)
+    
+    return document
+
+
+@router.get("/document/{document_id}", response_model=CsrDocumentRead)
+def get_csr_document_by_document_id(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    document: Document = Depends(get_document_for_user_or_403),
+):
+    """
+    Get CSR document by Document ID.
+    
+    Loads the Document by ID, ensures user has access to its study,
+    checks that document.type == "csr", and returns the linked CSRDocument.
+    If the CSRDocument doesn't exist, it will be created with default sections.
+    
+    Error Responses:
+    - 400: Document type is not "csr"
+    - 403: User is not a member of the study
+    - 404: Document or study not found
+    """
+    # Check that document type is "csr"
+    if document.type != "csr":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Document type must be 'csr', got '{document.type}'"
+        )
+    
+    # Get or create CSRDocument for this document
+    try:
+        csr_document = get_or_create_csr_for_document(document, current_user, db)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    
+    return csr_document
+
+
 @router.get("/{study_id}", response_model=CsrDocumentRead)
 def get_csr_document(
     study_id: int,
     db: Session = Depends(get_db),
     study: Study = Depends(get_study_for_user_or_403),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Get CSR document for a study.
     
     If the study doesn't exist, returns 404.
     If the CSR document doesn't exist, it will be created with default sections.
+    Uses the normalized CSR loading function to ensure consistency with document-based endpoints.
     """
     
-    # Ensure CSR document exists with default sections
-    # Use study title for the CSR document title
-    document = ensure_csr_document_with_default_sections(
-        db=db,
+    # Use normalized function that finds/creates Document and CSRDocument
+    csr_document = get_or_create_csr_for_study(
         study_id=study_id,
+        user=current_user,
+        db=db,
         title=f"CSR for {study.title}"
     )
     
-    return document
+    return csr_document
 
 
 @router.get("/{study_id}/sections", response_model=List[CsrSectionRead])
@@ -55,23 +123,26 @@ def get_csr_sections(
     study_id: int,
     db: Session = Depends(get_db),
     study: Study = Depends(get_study_for_user_or_403),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Get all sections for the CSR document of a study.
     
     If the study doesn't exist, returns 404.
     If the CSR document doesn't exist, it will be created with default sections.
+    Uses the normalized CSR loading function to ensure consistency with document-based endpoints.
     """
     
-    # Ensure CSR document exists with default sections
-    document = ensure_csr_document_with_default_sections(
-        db=db,
+    # Use normalized function that finds/creates Document and CSRDocument
+    csr_document = get_or_create_csr_for_study(
         study_id=study_id,
+        user=current_user,
+        db=db,
         title=f"CSR for {study.title}"
     )
     
     # Return sections (ordered by order_index from the relationship)
-    return document.sections
+    return csr_document.sections
 
 
 @router.get("/sections/{section_id}/versions/latest", response_model=CsrSectionVersionRead)
@@ -238,6 +309,7 @@ def export_csr_document_to_docx(
     study_id: int,
     db: Session = Depends(get_db),
     study: Study = Depends(get_study_for_user_or_403),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Export CSR document to DOCX format.
@@ -247,17 +319,19 @@ def export_csr_document_to_docx(
     
     If the study doesn't exist, returns 404.
     If the CSR document doesn't exist, it will be created with default sections.
+    Uses the normalized CSR loading function to ensure consistency with document-based endpoints.
     """
-    # Ensure CSR document exists with default sections
-    document = ensure_csr_document_with_default_sections(
-        db=db,
+    # Use normalized function that finds/creates Document and CSRDocument
+    csr_document = get_or_create_csr_for_study(
         study_id=study_id,
+        user=current_user,
+        db=db,
         title=f"CSR for {study.title}"
     )
     
     # Export to DOCX
     try:
-        docx_bytes = export_csr_to_docx(document.id, db)
+        docx_bytes = export_csr_to_docx(csr_document.id, db)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

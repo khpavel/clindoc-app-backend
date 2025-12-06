@@ -6,12 +6,14 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.qc import QCIssue, QCIssueStatus
 from app.models.csr import CsrDocument
+from app.models.document import Document
 from app.models.study import Study
 from app.models.user import User
 from app.schemas.qc import QCIssueRead, QCIssueListResponse, QCRunResponse
 from app.deps.auth import get_current_active_user
 from app.deps.study_access import get_study_for_user_or_403, verify_study_access
 from app.services.qc_rules import run_qc_rules_for_document
+from app.services.csr_document_link import get_or_create_csr_for_document
 
 router = APIRouter(prefix="/qc", tags=["qc"])
 
@@ -25,21 +27,40 @@ def run_qc_for_document(
     """
     Запустить набор базовых правил QC на документ и создать Issues.
     
+    Принимает Document.id (документ типа "csr") и запускает QC проверку
+    на связанном CSRDocument. Если CSRDocument не существует, он будет создан.
+    
     Требует доступ к исследованию, к которому принадлежит документ.
     """
-    # Загрузить документ
-    document = db.query(CsrDocument).filter(CsrDocument.id == document_id).first()
+    # Загрузить Document (не CsrDocument)
+    document = db.query(Document).filter(Document.id == document_id).first()
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found"
         )
     
+    # Проверить, что документ имеет тип "csr"
+    if document.type != "csr":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Document type must be 'csr', got '{document.type}'"
+        )
+    
     # Проверить доступ к исследованию
     verify_study_access(document.study_id, current_user.id, db)
     
-    # Запустить QC правила
-    issues = run_qc_rules_for_document(db, document_id, document.study_id)
+    # Получить или создать CSRDocument для этого Document
+    try:
+        csr_document = get_or_create_csr_for_document(document, current_user, db)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    
+    # Запустить QC правила на CSRDocument
+    issues = run_qc_rules_for_document(db, csr_document.id, csr_document.study_id)
     
     return QCRunResponse(
         document_id=document_id,

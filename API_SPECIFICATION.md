@@ -3,6 +3,15 @@
 ## Base URL
 All endpoints are prefixed with `/api/v1`
 
+## Correlation ID
+
+All API requests and responses include a correlation ID for request tracking:
+- **Request Header:** `X-Correlation-ID` (optional) — if provided, this ID will be used; otherwise, a new UUID will be generated
+- **Response Header:** `X-Correlation-ID` — the correlation ID for this request
+- **Error Responses:** All error responses include `correlation_id` in the response body
+
+The correlation ID is also included in all log messages, allowing you to trace a request through the system by searching logs for the correlation ID.
+
 ---
 
 ## Health Check
@@ -49,6 +58,9 @@ All endpoints are prefixed with `/api/v1`
 
 **Error Responses:**
 - `400`: Username (or email) already registered
+
+**Response Headers:**
+- `X-Correlation-ID`: Correlation ID for this request
 
 ### Obtain Access Token
 **Method:** `POST`  
@@ -300,7 +312,7 @@ All endpoints are prefixed with `/api/v1`
 
 **Path Parameters:**
 - `study_id` (integer, required): The ID of the study
-- `member_id` (integer, required): The ID of the study member record to remove
+- `member_id` (integer, required): The user ID of the study member to remove (note: this is the user_id, not the StudyMember record ID)
 
 **Response Body:**
 - No content (204 No Content)
@@ -308,6 +320,7 @@ All endpoints are prefixed with `/api/v1`
 **Notes:**
 - Only study owners can remove members
 - Cannot remove the last owner of the study
+- The `member_id` parameter is actually the `user_id` of the member to remove
 
 **Error Responses:**
 - `400`: Cannot remove the last owner of the study
@@ -347,9 +360,51 @@ All endpoints are prefixed with `/api/v1`
 
 **Notes:**
 - If the CSR document doesn't exist for the study, it will be automatically created with default sections.
+- This endpoint uses the same normalized CSR loading logic as `GET /api/v1/csr/document/{document_id}`, ensuring consistent behavior.
+- Internally, it finds or creates a default `Document` of type "csr" for the study, then ensures the linked `CsrDocument` exists.
+- The returned CSR document may have a `document_id` field linking it to the `Document` model for navigation consistency.
 
 **Error Responses:**
 - `404`: Study not found
+
+### Get CSR Document by Document ID
+**Method:** `GET`  
+**Path:** `/api/v1/csr/document/{document_id}`
+
+**Path Parameters:**
+- `document_id` (integer, required): The ID of the Document (must be type "csr")
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "study_id": 0,
+  "title": "string",
+  "status": "string",
+  "sections": [
+    {
+      "id": 0,
+      "code": "string",
+      "title": "string",
+      "order_index": 0
+    }
+  ]
+}
+```
+
+**Notes:**
+- Loads the Document by ID, ensures user has access to its study, and checks that `document.type == "csr"`
+- Returns the linked CSRDocument structure for editing
+- If the CSRDocument doesn't exist for the Document, it will be automatically created with default sections
+- The frontend can navigate by `document_id` instead of only by `study_id`
+- If a CSRDocument already exists for the study but is not linked to the Document, it will be linked automatically
+- This endpoint uses the same normalized CSR loading logic as `GET /api/v1/csr/{study_id}`, ensuring consistent behavior
+- The returned `document_id` can be used consistently across CSR, QC, and RAG endpoints
+
+**Error Responses:**
+- `400`: Document type is not "csr"
+- `403`: User is not a member of the study
+- `404`: Document or study not found
 
 ### Get CSR Sections
 **Method:** `GET`  
@@ -465,6 +520,7 @@ All endpoints are prefixed with `/api/v1`
 - Creates a new section version with rendered template content
 - Template is rendered with context from study data and RAG chunks
 - Returns status code `201 Created`
+- The response includes `template_id` field linking to the template used
 
 **Error Responses:**
 - `400`: Section does not belong to the specified study
@@ -587,6 +643,8 @@ All endpoints are prefixed with `/api/v1`
 - When uploading a new document with the same `type` and `language`, previous documents are automatically marked as `is_current=false`
 - The uploaded document is automatically indexed for RAG if `is_rag_enabled=true` (default)
 - `index_status` is set to "not_indexed" initially, then updated to "indexed" after successful RAG ingestion
+- RAG ingestion runs as a background task, so the response may return before indexing is complete
+- The document is immediately available after upload, but RAG chunks may not be available until indexing completes
 
 **Error Responses:**
 - `400`: File must have a filename, or language must be 'ru' or 'en'
@@ -711,6 +769,100 @@ All endpoints are prefixed with `/api/v1`
 - `400`: Document is not archived
 - `403`: Access denied (user is not a member of the study, or user is a viewer)
 - `404`: Source document not found
+
+---
+
+## Documents Endpoints
+
+> **Authorization:** Requires `Authorization: Bearer <token>` header. User must be a member of the study.
+
+### List Documents for Study
+**Method:** `GET`  
+**Path:** `/api/v1/studies/{study_id}/documents`
+
+**Path Parameters:**
+- `study_id` (integer, required): The ID of the study
+
+**Query Parameters:**
+- `ensure_default_csr` (boolean, optional): If `true`, automatically creates a default CSR document if none exists for the study. Default: `false`
+
+**Response Body:**
+```json
+[
+  {
+    "id": 0,
+    "study_id": 0,
+    "type": "string",
+    "title": "string",
+    "template_code": "string | null",
+    "status": "string",
+    "current_version_label": "string | null",
+    "created_by": 0,
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+**Notes:**
+- Returns all documents for the study, ordered by `type` first, then by `created_at` in ascending order
+- Only study members can view documents
+- Valid document types: `"csr"`, `"protocol"`, `"ib"`, `"sap"`, `"tlf"`
+- Valid document statuses: `"draft"`, `"in_qc"`, `"ready_for_submission"`, `"archived"`
+- If `ensure_default_csr=true` and no CSR document exists, a default CSR document is created with:
+  - `title` = "CSR for {study.code}" (or "CSR for Study {study_id}" if code is not available)
+  - `status` = "draft"
+  - `created_by` = current user
+
+**Error Responses:**
+- `401/403`: Missing or invalid token, or user is not a member of the study
+- `404`: Study not found
+
+### Create Document for Study
+**Method:** `POST`  
+**Path:** `/api/v1/studies/{study_id}/documents`
+
+**Path Parameters:**
+- `study_id` (integer, required): The ID of the study
+
+**Request Body:**
+```json
+{
+  "type": "string",
+  "title": "string",
+  "template_code": "string | null",
+  "status": "string"
+}
+```
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "study_id": 0,
+  "type": "string",
+  "title": "string",
+  "template_code": "string | null",
+  "status": "string",
+  "current_version_label": "string | null",
+  "created_by": 0,
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+**Notes:**
+- `status` defaults to `"draft"` if not provided
+- Valid document types: `"csr"`, `"protocol"`, `"ib"`, `"sap"`, `"tlf"`
+- Valid status values: `"draft"`, `"in_qc"`, `"ready_for_submission"`, `"archived"`
+- Only study owners and editors can create documents (viewers are not allowed)
+- The `created_by` field is automatically set to the current user's ID
+- Returns status code `201 Created`
+
+**Error Responses:**
+- `400`: Invalid request data (e.g., invalid `type` or `status` value)
+- `401/403`: Missing or invalid token, or user is not a member of the study, or user is a viewer
+- `404`: Study not found
 
 ---
 
@@ -881,7 +1033,7 @@ All endpoints are prefixed with `/api/v1`
 **Path:** `/api/v1/qc/documents/{document_id}/run`
 
 **Path Parameters:**
-- `document_id` (integer, required): The ID of the CSR document to check
+- `document_id` (integer, required): The ID of the Document (must be type "csr")
 
 **Response Body:**
 ```json
@@ -893,11 +1045,15 @@ All endpoints are prefixed with `/api/v1`
 ```
 
 **Notes:**
-- Runs a set of basic QC rules on the document and creates issues
+- Accepts a `Document.id` (the Document with `type="csr"`)
+- Automatically resolves the linked `CsrDocument` and runs QC rules on it
+- If the `CsrDocument` doesn't exist for the Document, it will be automatically created
 - Requires access to the study that owns the document
 - Returns the number of issues created
+- The same `document_id` can be used across CSR, QC, and RAG endpoints for consistent navigation
 
 **Error Responses:**
+- `400`: Document type is not "csr"
 - `401/403`: Missing or invalid token, or user is not a member of the study
 - `404`: Document not found
 
@@ -990,6 +1146,70 @@ All endpoints are prefixed with `/api/v1`
 - `400`: Invalid status or severity filter value
 - `401/403`: Missing or invalid token, or user is not a member of the study
 - `404`: Study not found
+
+---
+
+## Navigation and Document Structure
+
+### Document-Based Navigation
+
+The frontend can navigate by `document_id` for CSR, QC, and RAG operations. This provides a consistent identifier across all endpoints.
+
+**Key Concepts:**
+
+1. **Document Model**: The `Document` model represents a document in the system with fields:
+   - `id`: Unique document identifier
+   - `type`: Document type (e.g., `"csr"`, `"protocol"`, `"ib"`, `"sap"`, `"tlf"`)
+   - `study_id`: The study this document belongs to
+   - `title`, `status`, etc.
+
+2. **CSRDocument Model**: The `CsrDocument` model represents the CSR-specific structure with:
+   - `id`: Unique CSR document identifier
+   - `study_id`: The study this CSR belongs to
+   - `document_id`: Link to the `Document` (nullable, for backward compatibility)
+   - `sections`: List of CSR sections
+
+3. **Relationship**: 
+   - A `Document` with `type="csr"` can have a linked `CsrDocument`
+   - The `CsrDocument.document_id` field links to `Document.id`
+   - When accessing CSR endpoints by `document_id`, the system automatically:
+     - Finds the `Document` with `type="csr"`
+     - Gets or creates the linked `CsrDocument`
+     - Returns the CSR structure for editing
+
+**Navigation Flow:**
+
+1. **Frontend gets Document list**: `GET /api/v1/studies/{study_id}/documents`
+   - Returns all documents for the study, including CSR documents
+   - Each CSR document has a `Document.id` that can be used for navigation
+
+2. **Frontend navigates to CSR**: `GET /api/v1/csr/document/{document_id}`
+   - Uses the `Document.id` from step 1
+   - Backend automatically resolves the linked `CsrDocument`
+   - Returns CSR structure with sections
+
+3. **Frontend runs QC**: `POST /api/v1/qc/documents/{document_id}/run`
+   - Uses the same `Document.id`
+   - Backend resolves `CsrDocument` and runs QC rules
+
+4. **Frontend gets QC issues**: `GET /api/v1/qc/studies/{study_id}/issues?document_id={document_id}`
+   - Filters issues by the same `Document.id`
+
+**Backward Compatibility:**
+
+- Study-based endpoints (`GET /api/v1/csr/{study_id}`) still work and use the same internal logic
+- They automatically find or create a default `Document` of type "csr" for the study
+- Both study-based and document-based endpoints now use the same normalized CSR loading function internally
+
+**Consistent Behavior:**
+
+Both `GET /api/v1/csr/{study_id}` and `GET /api/v1/csr/document/{document_id}` use the same internal logic:
+- Find or create a `Document` of type "csr" for the study
+- Get or create the linked `CsrDocument`
+- Ensure default sections exist
+- Return the CSR structure
+
+This ensures that regardless of which endpoint the frontend uses, the same CSR structure is returned and the same `document_id` can be used for subsequent operations.
 
 ---
 

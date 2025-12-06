@@ -8,6 +8,7 @@ from app.db.session import Base
 
 if TYPE_CHECKING:
     from app.models.study import Study
+    from app.models.document import Document
 
 
 class CsrDocument(Base):
@@ -17,9 +18,16 @@ class CsrDocument(Base):
     study_id: Mapped[int] = mapped_column(Integer, ForeignKey("studies.id"), unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft")
+    document_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("documents.id"), nullable=True, index=True)
 
     # Relationships
     study: Mapped["Study"] = relationship("Study", back_populates="csr_document")
+    document: Mapped["Document | None"] = relationship(
+        "Document", 
+        back_populates="csr_document", 
+        uselist=False,
+        foreign_keys=[document_id]
+    )
     sections: Mapped[list["CsrSection"]] = relationship(
         "CsrSection", back_populates="document", order_by="CsrSection.order_index"
     )
