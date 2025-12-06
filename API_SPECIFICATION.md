@@ -71,6 +71,22 @@ All endpoints are prefixed with `/api/v1`
 - `401`: Incorrect username or password
 - `403`: User inactive
 
+### Logout
+**Method:** `POST`  
+**Path:** `/api/v1/auth/logout`
+
+**Response Body:**
+```json
+{
+  "detail": "logged out"
+}
+```
+
+**Notes:**
+- JWT tokens are stateless, so this endpoint currently just returns a success message
+- The client should discard the token on their side
+- Future implementation may include token blacklist/revocation mechanism
+
 ---
 
 ## Studies Endpoints
@@ -833,6 +849,8 @@ All endpoints are prefixed with `/api/v1`
       "source_type": "string",
       "order_index": 0,
       "text": "string",
+      "text_preview": "string",
+      "source_document_file_name": "string | null",
       "created_at": "2024-01-01T00:00:00Z"
     }
   ]
@@ -845,8 +863,131 @@ All endpoints are prefixed with `/api/v1`
 - Supports pagination with `limit` and `offset`
 - Returns `total_chunks` for implementing pagination on the client side
 - Text search (`q`) performs case-insensitive substring matching
+- `text_preview` contains a truncated version of the text (first 200 characters) for list views
+- `source_document_file_name` contains the file name of the source document for convenience
 
 **Error Responses:**
+- `401/403`: Missing or invalid token, or user is not a member of the study
+- `404`: Study not found
+
+---
+
+## QC (Quality Control) Endpoints
+
+> **Authorization:** Requires `Authorization: Bearer <token>` header. User must be a member of the study.
+
+### Run QC Check for Document
+**Method:** `POST`  
+**Path:** `/api/v1/qc/documents/{document_id}/run`
+
+**Path Parameters:**
+- `document_id` (integer, required): The ID of the CSR document to check
+
+**Response Body:**
+```json
+{
+  "document_id": 0,
+  "issues_created": 0,
+  "message": "string"
+}
+```
+
+**Notes:**
+- Runs a set of basic QC rules on the document and creates issues
+- Requires access to the study that owns the document
+- Returns the number of issues created
+
+**Error Responses:**
+- `401/403`: Missing or invalid token, or user is not a member of the study
+- `404`: Document not found
+
+### Get QC Issues
+**Method:** `GET`  
+**Path:** `/api/v1/qc/issues/{study_id}`
+
+**Path Parameters:**
+- `study_id` (integer, required): The ID of the study
+
+**Query Parameters:**
+- `status` (string, optional): Filter by status (`open`, `resolved`, `wont_fix`)
+- `severity` (string, optional): Filter by severity (`info`, `warning`, `error`)
+
+**Response Body:**
+```json
+{
+  "issues": [
+    {
+      "id": 0,
+      "study_id": 0,
+      "document_id": 0,
+      "section_id": 0,
+      "rule_id": 0,
+      "severity": "string",
+      "status": "string",
+      "message": "string",
+      "created_at": "2024-01-01T00:00:00Z",
+      "resolved_at": "string | null",
+      "resolved_by": "string | null"
+    }
+  ],
+  "total": 0
+}
+```
+
+**Notes:**
+- Returns all QC issues for the study with optional filtering
+- Issues are ordered by `created_at` in descending order (most recent first)
+- Valid status values: `open`, `resolved`, `wont_fix`
+- Valid severity values: `info`, `warning`, `error`
+
+**Error Responses:**
+- `400`: Invalid status or severity filter value
+- `401/403`: Missing or invalid token, or user is not a member of the study
+- `404`: Study not found
+
+### Get QC Issues for Study
+**Method:** `GET`  
+**Path:** `/api/v1/qc/studies/{study_id}/issues`
+
+**Path Parameters:**
+- `study_id` (integer, required): The ID of the study
+
+**Query Parameters:**
+- `document_id` (integer, optional): Filter by document ID
+- `status` (string, optional): Filter by status (`open`, `resolved`, `wont_fix`)
+- `severity` (string, optional): Filter by severity (`info`, `warning`, `error`)
+
+**Response Body:**
+```json
+{
+  "issues": [
+    {
+      "id": 0,
+      "study_id": 0,
+      "document_id": 0,
+      "section_id": 0,
+      "rule_id": 0,
+      "severity": "string",
+      "status": "string",
+      "message": "string",
+      "created_at": "2024-01-01T00:00:00Z",
+      "resolved_at": "string | null",
+      "resolved_by": "string | null"
+    }
+  ],
+  "total": 0
+}
+```
+
+**Notes:**
+- Returns all QC issues for the study with optional filtering
+- Issues are ordered by `created_at` in descending order (most recent first)
+- `document_id` filter allows filtering issues by a specific CSR document
+- Valid status values: `open`, `resolved`, `wont_fix`
+- Valid severity values: `info`, `warning`, `error`
+
+**Error Responses:**
+- `400`: Invalid status or severity filter value
 - `401/403`: Missing or invalid token, or user is not a member of the study
 - `404`: Study not found
 
