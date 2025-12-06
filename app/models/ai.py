@@ -16,6 +16,7 @@ class AiCallLog(Base):
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     generated_text: Mapped[str | None] = mapped_column(Text, nullable=True)  # in case of failure
     model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    mode: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "stub" or "real"
     success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)

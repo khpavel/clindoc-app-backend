@@ -2,11 +2,11 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.core.storage import build_study_source_path, delete_file
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
 from app.deps.auth import get_current_active_user
 from app.deps.study_access import get_study_for_user_or_403, verify_study_editor_access, verify_study_management_access
 from app.models.source import SourceDocument
@@ -21,6 +21,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sources", tags=["sources"])
 
 
+def _run_ingestion_background(source_document_id: int) -> None:
+    """
+    Background task to run RAG ingestion for a source document.
+    Sets index_status to 'indexed' on success or 'error' on failure.
+    Creates a new database session for the background task.
+    """
+    db = SessionLocal()
+    try:
+        logger.info(f"Starting RAG ingestion for source_document_id={source_document_id}")
+        chunks_count = ingest_source_document_to_rag(db, source_document_id)
+        logger.info(f"RAG ingestion completed successfully for source_document_id={source_document_id}, created {chunks_count} chunks")
+    except Exception as e:
+        # Error is already logged and index_status set to 'error' inside ingest_source_document_to_rag
+        logger.error(f"RAG ingestion failed for source_document_id={source_document_id}: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
 @router.post("/{study_id}/upload", response_model=SourceDocumentRead)
 async def upload_source_document(
     study_id: int,
@@ -28,6 +46,7 @@ async def upload_source_document(
     type: str = Form(...),
     language: str = Form("ru"),
     version_label: Optional[str] = Form(None),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     study: Study = Depends(get_study_for_user_or_403),
@@ -76,6 +95,7 @@ async def upload_source_document(
     ).update({"is_current": False})
     
     # Create SourceDocument DB record
+    # Set index_status to "not_indexed" before ingestion starts
     source_doc = SourceDocument(
         study_id=study_id,
         type=type,
@@ -95,14 +115,11 @@ async def upload_source_document(
     db.refresh(source_doc)
     
     # Trigger automatic RAG ingestion after document is saved (only if is_rag_enabled is True)
+    # Ingestion runs in background task to avoid blocking the response
+    # Status will be updated to "indexed" on success or "error" on failure
     if source_doc.is_rag_enabled:
-        try:
-            logger.info(f"Starting automatic RAG ingestion for source_document_id={source_doc.id}, file={file.filename}")
-            chunks_count = ingest_source_document_to_rag(db, source_doc.id)
-            logger.info(f"RAG ingestion completed successfully for source_document_id={source_doc.id}, created {chunks_count} chunks")
-        except Exception as e:
-            # Log but don't fail the upload if ingestion fails
-            logger.error(f"RAG ingestion failed for source_document_id={source_doc.id}, file={file.filename}: {e}", exc_info=True)
+        background_tasks.add_task(_run_ingestion_background, source_doc.id)
+        logger.info(f"Scheduled RAG ingestion for source_document_id={source_doc.id}, file={file.filename}")
     
     return source_doc
 

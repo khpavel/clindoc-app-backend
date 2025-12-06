@@ -455,6 +455,32 @@ All endpoints are prefixed with `/api/v1`
 - `401/403`: Missing or invalid token, or user is not a member of the study
 - `404`: Section, study, or template not found
 
+### Export CSR Document to DOCX
+**Method:** `GET`  
+**Path:** `/api/v1/csr/{study_id}/export/docx`
+
+**Path Parameters:**
+- `study_id` (integer, required): The ID of the study
+
+**Response:**
+- Content-Type: `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+- Content-Disposition: `attachment; filename="csr_{study_code}.docx"`
+- Body: Binary DOCX file content
+
+**Notes:**
+- Requires authentication (user must be a member of the study)
+- If the CSR document doesn't exist, it will be automatically created with default sections
+- Exports the CSR document with all sections and their latest versions
+- Document structure:
+  - Document title as main heading (centered)
+  - Section titles as level 1 headings
+  - Section text as paragraphs
+- Filename is generated as `csr_{study_code}.docx` or `csr_{study_id}.docx` if code is not available
+
+**Error Responses:**
+- `401/403`: Missing or invalid token, or user is not a member of the study
+- `404`: Study not found, or CSR document not found (after creation attempt)
+
 ---
 
 ## AI Endpoints
@@ -489,15 +515,19 @@ All endpoints are prefixed with `/api/v1`
 
 **Notes:**
 - Automatically retrieves RAG context from source documents (protocol, SAP, TLF, previous CSR)
-- Uses prompt templates if available for the section
-- All AI calls are logged in the database
-- Currently uses a stub implementation that will later be replaced with a real LLM call
+- Uses prompt templates if available for the section, otherwise builds prompt using `ai_prompt_builder`
+- Includes current section text (if exists) in the prompt for context-aware generation
+- Supports two AI modes controlled by `AI_MODE` configuration:
+  - `"stub"` (default): Returns placeholder text for development/testing
+  - `"real"`: Calls external LLM API via HTTP (requires `AI_ENDPOINT` and optionally `AI_API_KEY` environment variables)
+- All AI calls are logged in the database with the mode used (`mode` field)
+- The effective prompt (after template rendering or prompt building) is logged in `ai_call_logs`
 
 **Error Responses:**
 - `400`: Section does not belong to study
 - `401/403`: Missing or invalid token, or user is not a member of the study
 - `404`: Section or study not found
-- `500`: AI generation failed
+- `500`: AI generation failed (includes error details in `ai_call_logs` with `success=false`)
 
 ---
 

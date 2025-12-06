@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, func
 
 from app.db.session import get_db
@@ -63,7 +63,8 @@ def get_study_rag_chunks(
     """
     
     # Build a base query on RagChunk filtered by study_id
-    base_query = db.query(RagChunk).filter(RagChunk.study_id == study_id)
+    # Use joinedload to eagerly load source_document relationship
+    base_query = db.query(RagChunk).options(joinedload(RagChunk.source_document)).filter(RagChunk.study_id == study_id)
     
     # If source_type is provided, filter by RagChunk.source_type == source_type
     if source_type is not None:
@@ -73,7 +74,7 @@ def get_study_rag_chunks(
     if q is not None:
         base_query = base_query.filter(RagChunk.text.ilike(f"%{q}%"))
     
-    # Compute total_chunks using select(func.count())
+    # Compute total_chunks using select(func.count()) 
     count_query = select(func.count(RagChunk.id)).filter(RagChunk.study_id == study_id)
     if source_type is not None:
         count_query = count_query.filter(RagChunk.source_type == source_type)
@@ -91,7 +92,27 @@ def get_study_rag_chunks(
     )
     
     # Convert SQLAlchemy RagChunk instances to RagChunkRead Pydantic models
-    chunk_reads = [RagChunkRead.model_validate(chunk, from_attributes=True) for chunk in chunks]
+    # with truncated text preview and source document file name
+    chunk_reads = []
+    for chunk in chunks:
+        # Truncate text to 200 characters for preview
+        text_preview = chunk.text[:200] + "..." if len(chunk.text) > 200 else chunk.text
+        
+        # Get source document file name from the eagerly loaded relationship
+        source_document_file_name = chunk.source_document.file_name if chunk.source_document else None
+        
+        chunk_dict = {
+            "id": chunk.id,
+            "study_id": chunk.study_id,
+            "source_document_id": chunk.source_document_id,
+            "source_type": chunk.source_type,
+            "order_index": chunk.order_index,
+            "text": chunk.text,
+            "text_preview": text_preview,
+            "created_at": chunk.created_at,
+            "source_document_file_name": source_document_file_name,
+        }
+        chunk_reads.append(RagChunkRead.model_validate(chunk_dict))
     
     # Return RagStudyChunksResponse with study_id, source_type, total_chunks, limit, offset, chunks
     return RagStudyChunksResponse(

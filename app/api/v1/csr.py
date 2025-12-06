@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -18,6 +18,7 @@ from app.schemas.csr import (
 from app.services.csr_defaults import ensure_csr_document_with_default_sections
 from app.services.template_context import build_template_context
 from app.services.template_renderer import render_template_content
+from app.services.docx_export import export_csr_to_docx
 from app.deps.auth import get_current_active_user
 from app.deps.study_access import get_study_for_user_or_403, verify_study_access
 from app.models.user import User
@@ -230,3 +231,47 @@ def apply_template_to_section(
     db.refresh(version)
     
     return version
+
+
+@router.get("/{study_id}/export/docx")
+def export_csr_document_to_docx(
+    study_id: int,
+    db: Session = Depends(get_db),
+    study: Study = Depends(get_study_for_user_or_403),
+):
+    """
+    Export CSR document to DOCX format.
+    
+    Finds CSRDocument by study_id, exports it to DOCX, and returns the file
+    with proper Content-Type and Content-Disposition headers.
+    
+    If the study doesn't exist, returns 404.
+    If the CSR document doesn't exist, it will be created with default sections.
+    """
+    # Ensure CSR document exists with default sections
+    document = ensure_csr_document_with_default_sections(
+        db=db,
+        study_id=study_id,
+        title=f"CSR for {study.title}"
+    )
+    
+    # Export to DOCX
+    try:
+        docx_bytes = export_csr_to_docx(document.id, db)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    
+    # Generate filename
+    filename = f"csr_{study.code or study_id}.docx"
+    
+    # Return file with proper headers
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )

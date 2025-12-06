@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     
     # Storage settings
     storage_dir: str = "storage"  # STORAGE_DIR - base directory for uploaded source documents
+    
+    # AI settings
+    ai_mode: str = "stub"  # AI_MODE - AI implementation mode: "stub" or "real"
 
     class Config:
         env_file = _get_env_file_list()
