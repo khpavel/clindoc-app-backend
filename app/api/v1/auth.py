@@ -99,3 +99,18 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             detail=f"Internal server error during authentication: {str(e)}"
         )
 
+
+@router.post("/logout")
+def logout():
+    """
+    Logout endpoint.
+    
+    Note: JWT tokens are stateless, so this endpoint currently just returns a success message.
+    The client should discard the token on their side.
+    
+    TODO: In the future, implement token blacklist/revocation mechanism:
+    - Store revoked tokens in Redis or database
+    - Check blacklist in get_current_user dependency
+    - Add token to blacklist on logout
+    """
+    return {"detail": "logged out"}

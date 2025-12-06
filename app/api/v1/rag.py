@@ -5,6 +5,7 @@ from sqlalchemy import select, func
 
 from app.db.session import get_db
 from app.deps.auth import get_current_active_user
+from app.deps.study_access import get_study_for_user_or_403
 from app.models.rag import RagChunk
 from app.models.study import Study
 from app.models.source import SourceDocument
@@ -53,19 +54,13 @@ def get_study_rag_chunks(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    study: Study = Depends(get_study_for_user_or_403),
 ):
     """
     Diagnostic endpoint to inspect RAG chunks for a given study.
     
     Returns paginated list of chunks with optional filtering by source_type.
     """
-    # Ensure the Study with study_id exists; if not, raise 404
-    study = db.query(Study).filter(Study.id == study_id).first()
-    if not study:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Study not found"
-        )
     
     # Build a base query on RagChunk filtered by study_id
     base_query = db.query(RagChunk).filter(RagChunk.study_id == study_id)

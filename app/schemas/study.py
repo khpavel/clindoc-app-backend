@@ -5,6 +5,9 @@ class StudyBase(BaseModel):
     code: str
     title: str
     phase: str | None = None
+    status: str = "draft"
+    indication: str | None = None
+    sponsor_name: str | None = None
 
 
 class StudyCreate(StudyBase):

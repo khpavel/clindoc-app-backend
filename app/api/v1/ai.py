@@ -14,13 +14,9 @@ from app.services.rag_retrieval import retrieve_rag_chunks, build_rag_context_te
 from app.services.template_context import build_template_context
 from app.services.template_renderer import render_template_content
 
-# Optional: Import get_current_active_user if available for future use
-try:
-    from app.deps.auth import get_current_active_user
-    from app.models.user import User
-except ImportError:
-    get_current_active_user = None
-    User = None
+from app.deps.auth import get_current_active_user
+from app.deps.study_access import verify_study_access
+from app.models.user import User
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -29,7 +25,7 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 async def generate_section_text(
     body: GenerateSectionTextRequest,
     db: Session = Depends(get_db),
-    # current_user: User = Depends(get_current_active_user)  # if available
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Generate CSR section text using AI.
@@ -37,13 +33,8 @@ async def generate_section_text(
     Validates that the section belongs to the study's CSR document,
     calls the AI service, logs the call, and returns the generated text.
     """
-    # Validate that study exists
-    study = db.query(Study).filter(Study.id == body.study_id).first()
-    if not study:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Study not found"
-        )
+    # Verify user has access to the study
+    study = verify_study_access(body.study_id, current_user.id, db)
     
     # Validate that CsrSection with body.section_id exists
     section = db.query(CsrSection).filter(CsrSection.id == body.section_id).first()

@@ -19,6 +19,7 @@ from app.services.csr_defaults import ensure_csr_document_with_default_sections
 from app.services.template_context import build_template_context
 from app.services.template_renderer import render_template_content
 from app.deps.auth import get_current_active_user
+from app.deps.study_access import get_study_for_user_or_403, verify_study_access
 from app.models.user import User
 
 router = APIRouter(prefix="/csr", tags=["csr"])
@@ -28,6 +29,7 @@ router = APIRouter(prefix="/csr", tags=["csr"])
 def get_csr_document(
     study_id: int,
     db: Session = Depends(get_db),
+    study: Study = Depends(get_study_for_user_or_403),
 ):
     """
     Get CSR document for a study.
@@ -35,13 +37,6 @@ def get_csr_document(
     If the study doesn't exist, returns 404.
     If the CSR document doesn't exist, it will be created with default sections.
     """
-    # Check if study exists
-    study = db.query(Study).filter(Study.id == study_id).first()
-    if not study:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Study not found"
-        )
     
     # Ensure CSR document exists with default sections
     # Use study title for the CSR document title
@@ -58,6 +53,7 @@ def get_csr_document(
 def get_csr_sections(
     study_id: int,
     db: Session = Depends(get_db),
+    study: Study = Depends(get_study_for_user_or_403),
 ):
     """
     Get all sections for the CSR document of a study.
@@ -65,13 +61,6 @@ def get_csr_sections(
     If the study doesn't exist, returns 404.
     If the CSR document doesn't exist, it will be created with default sections.
     """
-    # Check if study exists
-    study = db.query(Study).filter(Study.id == study_id).first()
-    if not study:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Study not found"
-        )
     
     # Ensure CSR document exists with default sections
     document = ensure_csr_document_with_default_sections(
@@ -176,6 +165,9 @@ def apply_template_to_section(
     Loads the template, builds context from study data, renders the template,
     and creates a new CsrSectionVersion with the rendered text.
     """
+    # Verify user has access to the study (study_id is in request body)
+    verify_study_access(body.study_id, current_user.id, db)
+    
     # Verify that the section exists
     section = db.query(CsrSection).filter(CsrSection.id == section_id).first()
     if not section:
