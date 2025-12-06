@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Session
 
-from app.models.csr import CsrDocument, CsrSection
+from app.models.output_document import OutputDocument, OutputSection
 
 
+# Default sections for OutputDocument (used for documents of type "csr")
 DEFAULT_CSR_SECTIONS = [
     {"code": "SYNOPSIS", "title": "Synopsis"},
     {"code": "EFFICACY", "title": "Efficacy Results"},
@@ -16,9 +17,12 @@ def ensure_csr_document_with_default_sections(
     db: Session,
     study_id: int,
     title: str | None = None,
-) -> CsrDocument:
+) -> OutputDocument:
     """
-    Ensure a CSR document exists for the given study_id with default sections.
+    DEPRECATED: Ensure an OutputDocument exists for the given study_id with default sections.
+    
+    This function is kept for backward compatibility. New code should use
+    get_or_create_output_document_for_study() instead.
     
     If the document doesn't exist, create it. If it exists but has no sections,
     create default sections from DEFAULT_CSR_SECTIONS.
@@ -30,15 +34,15 @@ def ensure_csr_document_with_default_sections(
                is created, defaults to "CSR for study {study_id}"
     
     Returns:
-        The CsrDocument instance (existing or newly created)
+        The OutputDocument instance (existing or newly created)
     """
-    # Try to find existing CsrDocument for study_id
-    document = db.query(CsrDocument).filter(CsrDocument.study_id == study_id).first()
+    # Try to find existing OutputDocument for study_id
+    document = db.query(OutputDocument).filter(OutputDocument.study_id == study_id).first()
     
     if not document:
         # Create a new document with title or default
         document_title = title or f"CSR for study {study_id}"
-        document = CsrDocument(
+        document = OutputDocument(
             study_id=study_id,
             title=document_title,
             status="draft",
@@ -49,7 +53,7 @@ def ensure_csr_document_with_default_sections(
     # If the document has no sections, create default sections
     if not document.sections:
         for index, section_data in enumerate(DEFAULT_CSR_SECTIONS, start=1):
-            section = CsrSection(
+            section = OutputSection(
                 document_id=document.id,
                 code=section_data["code"],
                 title=section_data["title"],

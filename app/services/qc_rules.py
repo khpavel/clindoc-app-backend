@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 
 from app.models.qc import QCRule, QCIssue, QCRuleSeverity, QCIssueStatus
-from app.models.csr import CsrDocument, CsrSection
-from app.services.csr_defaults import DEFAULT_CSR_SECTIONS
+from app.models.output_document import OutputDocument, OutputSection
+from app.services.output_document_defaults import DEFAULT_CSR_SECTIONS
 
 
 def get_or_create_required_sections_rule(db: Session) -> QCRule:
@@ -45,13 +45,13 @@ def check_required_sections(
         return []
     
     # Загрузить документ
-    document = db.query(CsrDocument).filter(CsrDocument.id == document_id).first()
+    document = db.query(OutputDocument).filter(OutputDocument.id == document_id).first()
     if not document:
         return []
     
     # Получить все секции документа
-    existing_sections = db.query(CsrSection).filter(
-        CsrSection.document_id == document_id
+    existing_sections = db.query(OutputSection).filter(
+        OutputSection.document_id == document_id
     ).all()
     existing_codes = {section.code for section in existing_sections}
     

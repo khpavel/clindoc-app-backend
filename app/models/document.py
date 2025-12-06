@@ -8,7 +8,7 @@ from app.db.session import Base
 
 if TYPE_CHECKING:
     from app.models.study import Study
-    from app.models.csr import CsrDocument
+    from app.models.output_document import OutputDocument
 
 
 class Document(Base):
@@ -27,8 +27,8 @@ class Document(Base):
 
     # Relationships
     study: Mapped["Study"] = relationship("Study", back_populates="documents")
-    csr_document: Mapped["CsrDocument | None"] = relationship(
-        "CsrDocument", 
+    csr_document: Mapped["OutputDocument | None"] = relationship(
+        "OutputDocument", 
         back_populates="document", 
         uselist=False
     )

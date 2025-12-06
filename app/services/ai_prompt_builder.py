@@ -4,12 +4,12 @@ Service for building prompts for AI generation of CSR section text.
 from typing import Optional
 
 from app.models.study import Study
-from app.models.csr import CsrSection
+from app.models.output_document import OutputSection
 
 
 def build_generate_section_prompt(
     study: Study,
-    section: CsrSection,
+    section: OutputSection,
     current_text: Optional[str],
     rag_context_by_source_type: dict[str, str],
     user_prompt: Optional[str],
@@ -19,7 +19,7 @@ def build_generate_section_prompt(
     
     Args:
         study: Study object with study information
-        section: CsrSection object with section information
+        section: OutputSection object with section information
         current_text: Current text of the section (if exists), None otherwise
         rag_context_by_source_type: Dictionary with RAG context by source type
             (e.g., {"protocol": "...", "sap": "...", "tlf": "...", "csr_prev": "..."})

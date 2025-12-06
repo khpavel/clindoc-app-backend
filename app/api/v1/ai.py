@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.csr import CsrSection, CsrDocument, CsrSectionVersion
+from app.models.output_document import OutputSection, OutputDocument, OutputSectionVersion
 from app.models.study import Study
 from app.models.ai import AiCallLog
 from app.models.template import Template
@@ -39,16 +39,16 @@ async def generate_section_text(
     # Verify user has access to the study
     study = verify_study_access(body.study_id, current_user.id, db)
     
-    # Validate that CsrSection with body.section_id exists
-    section = db.query(CsrSection).filter(CsrSection.id == body.section_id).first()
+    # Validate that OutputSection with body.section_id exists
+    section = db.query(OutputSection).filter(OutputSection.id == body.section_id).first()
     if not section:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Section not found"
         )
     
-    # Validate that the section belongs to CSR document of body.study_id
-    document = db.query(CsrDocument).filter(CsrDocument.id == section.document_id).first()
+    # Validate that the section belongs to OutputDocument of body.study_id
+    document = db.query(OutputDocument).filter(OutputDocument.id == section.document_id).first()
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -64,9 +64,9 @@ async def generate_section_text(
     # Get current section text (latest version if exists)
     current_text = None
     latest_version = (
-        db.query(CsrSectionVersion)
-        .filter(CsrSectionVersion.section_id == section.id)
-        .order_by(desc(CsrSectionVersion.created_at), desc(CsrSectionVersion.id))
+        db.query(OutputSectionVersion)
+        .filter(OutputSectionVersion.section_id == section.id)
+        .order_by(desc(OutputSectionVersion.created_at), desc(OutputSectionVersion.id))
         .first()
     )
     if latest_version:

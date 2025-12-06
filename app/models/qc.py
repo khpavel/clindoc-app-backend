@@ -9,7 +9,7 @@ from app.db.session import Base
 
 if TYPE_CHECKING:
     from app.models.study import Study
-    from app.models.csr import CsrDocument, CsrSection
+    from app.models.output_document import OutputDocument, OutputSection
 
 
 class QCRuleSeverity(str, Enum):
@@ -56,8 +56,8 @@ class QCIssue(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     study_id: Mapped[int] = mapped_column(Integer, ForeignKey("studies.id"), nullable=False, index=True)
-    document_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("csr_documents.id"), nullable=True, index=True)
-    section_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("csr_sections.id"), nullable=True, index=True)
+    document_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("output_documents.id"), nullable=True, index=True)
+    section_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("output_sections.id"), nullable=True, index=True)
     rule_id: Mapped[int] = mapped_column(Integer, ForeignKey("qc_rules.id"), nullable=False, index=True)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=QCIssueStatus.OPEN.value)
@@ -68,8 +68,8 @@ class QCIssue(Base):
 
     # Relationships
     study: Mapped["Study"] = relationship("Study")
-    document: Mapped[Optional["CsrDocument"]] = relationship("CsrDocument")
-    section: Mapped[Optional["CsrSection"]] = relationship("CsrSection")
+    document: Mapped[Optional["OutputDocument"]] = relationship("OutputDocument")
+    section: Mapped[Optional["OutputSection"]] = relationship("OutputSection")
     rule: Mapped["QCRule"] = relationship("QCRule", back_populates="issues")
 
     __table_args__ = (

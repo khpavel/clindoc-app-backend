@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, relationship
 from app.db.session import Base
 
 if TYPE_CHECKING:
-    from app.models.csr import CsrDocument
+    from app.models.output_document import OutputDocument
     from app.models.source import SourceDocument
     from app.models.study_member import StudyMember
     from app.models.document import Document
@@ -34,7 +34,7 @@ class Study(Base):
     sponsor_name = Column(String(255), nullable=True)
 
     # Relationships
-    csr_document: Mapped["CsrDocument | None"] = relationship("CsrDocument", back_populates="study", uselist=False)
+    csr_document: Mapped["OutputDocument | None"] = relationship("OutputDocument", back_populates="study", uselist=False)
     source_documents: Mapped[list["SourceDocument"]] = relationship("SourceDocument", back_populates="study", cascade="all, delete-orphan")
     members: Mapped[list["StudyMember"]] = relationship("StudyMember", back_populates="study", cascade="all, delete-orphan")
     documents: Mapped[list["Document"]] = relationship("Document", back_populates="study", cascade="all, delete-orphan")

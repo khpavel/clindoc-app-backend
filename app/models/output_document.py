@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     from app.models.document import Document
 
 
-class CsrDocument(Base):
-    __tablename__ = "csr_documents"
+class OutputDocument(Base):
+    __tablename__ = "output_documents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     study_id: Mapped[int] = mapped_column(Integer, ForeignKey("studies.id"), unique=True, nullable=False)
@@ -28,30 +28,30 @@ class CsrDocument(Base):
         uselist=False,
         foreign_keys=[document_id]
     )
-    sections: Mapped[list["CsrSection"]] = relationship(
-        "CsrSection", back_populates="document", order_by="CsrSection.order_index"
+    sections: Mapped[list["OutputSection"]] = relationship(
+        "OutputSection", back_populates="document", order_by="OutputSection.order_index"
     )
 
 
-class CsrSection(Base):
-    __tablename__ = "csr_sections"
+class OutputSection(Base):
+    __tablename__ = "output_sections"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    document_id: Mapped[int] = mapped_column(Integer, ForeignKey("csr_documents.id"), nullable=False)
+    document_id: Mapped[int] = mapped_column(Integer, ForeignKey("output_documents.id"), nullable=False)
     code: Mapped[str] = mapped_column(String(100), nullable=False)  # e.g. "SYNOPSIS", "EFFICACY_PRIMARY"
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Relationships
-    document: Mapped["CsrDocument"] = relationship("CsrDocument", back_populates="sections")
-    versions: Mapped[list["CsrSectionVersion"]] = relationship("CsrSectionVersion", back_populates="section")
+    document: Mapped["OutputDocument"] = relationship("OutputDocument", back_populates="sections")
+    versions: Mapped[list["OutputSectionVersion"]] = relationship("OutputSectionVersion", back_populates="section")
 
 
-class CsrSectionVersion(Base):
-    __tablename__ = "csr_section_versions"
+class OutputSectionVersion(Base):
+    __tablename__ = "output_section_versions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    section_id: Mapped[int] = mapped_column(Integer, ForeignKey("csr_sections.id"), nullable=False)
+    section_id: Mapped[int] = mapped_column(Integer, ForeignKey("output_sections.id"), nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -59,5 +59,5 @@ class CsrSectionVersion(Base):
     template_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("templates.id"), nullable=True)
 
     # Relationships
-    section: Mapped["CsrSection"] = relationship("CsrSection", back_populates="versions")
+    section: Mapped["OutputSection"] = relationship("OutputSection", back_populates="versions")
 

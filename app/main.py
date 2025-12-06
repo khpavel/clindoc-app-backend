@@ -23,10 +23,11 @@ logger = logging.getLogger(__name__)
 
 from app.db.session import engine, Base
 # Import models to ensure they're registered with SQLAlchemy Base
-from app.models import user, study, csr, source, template, rag, ai, study_member, qc, document  # noqa: F401
+from app.models import user, study, output_document, source, template, rag, ai, study_member, qc, document  # noqa: F401
 from app.api.v1.auth import router as auth_router
 from app.api.v1.studies import router as studies_router
-from app.api.v1.csr import router as csr_router
+from app.api.v1.output_document import router as csr_router
+from app.api.v1.output import router as output_router
 from app.api.v1.ai import router as ai_router
 from app.api.v1.sources import router as sources_router
 from app.api.v1.templates import router as templates_router
@@ -35,9 +36,9 @@ from app.api.v1.qc import router as qc_router
 from app.api.v1.documents import router as documents_router
 
 app = FastAPI(
-    title="CSR Assistant Backend",
+    title="ClinApp Backend",
     version="0.1.0",
-    description="Backend API for CSR Assistant application",
+    description="Backend API for Clinical Document Management application",
     docs_url="/docs",  # Swagger UI endpoint
     redoc_url="/redoc",  # ReDoc endpoint
     openapi_url="/openapi.json",  # OpenAPI schema endpoint
@@ -175,6 +176,7 @@ except Exception as e:
 app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
 app.include_router(studies_router, prefix="/api/v1", tags=["studies"])
 app.include_router(csr_router, prefix="/api/v1", tags=["csr"])
+app.include_router(output_router, prefix="/api/v1", tags=["output"])
 app.include_router(ai_router, prefix="/api/v1", tags=["ai"])
 app.include_router(sources_router, prefix="/api/v1", tags=["sources"])
 app.include_router(templates_router, prefix="/api/v1", tags=["templates"])

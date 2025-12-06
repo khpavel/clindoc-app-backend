@@ -6,17 +6,17 @@ from sqlalchemy import desc
 
 from app.db.session import get_db
 from app.models.study import Study
-from app.models.csr import CsrDocument, CsrSection, CsrSectionVersion
+from app.models.output_document import OutputDocument, OutputSection, OutputSectionVersion
 from app.models.document import Document
 from app.models.template import Template
-from app.schemas.csr import (
-    CsrDocumentRead,
-    CsrSectionRead,
-    CsrSectionVersionCreate,
-    CsrSectionVersionRead,
+from app.schemas.output_document import (
+    OutputDocumentRead,
+    OutputSectionRead,
+    OutputSectionVersionCreate,
+    OutputSectionVersionRead,
     ApplyTemplateRequest,
 )
-from app.services.csr_document_link import get_or_create_csr_for_document, get_or_create_csr_for_study
+from app.services.output_document_document_link import get_or_create_output_document_for_document, get_or_create_output_document_for_study
 from app.services.template_context import build_template_context
 from app.services.template_renderer import render_template_content
 from app.services.docx_export import export_csr_to_docx
@@ -24,7 +24,7 @@ from app.deps.auth import get_current_active_user
 from app.deps.study_access import get_study_for_user_or_403, verify_study_access
 from app.models.user import User
 
-router = APIRouter(prefix="/csr", tags=["csr"])
+router = APIRouter(prefix="/output", tags=["output"])
 
 
 def get_document_for_user_or_403(
@@ -54,19 +54,19 @@ def get_document_for_user_or_403(
     return document
 
 
-@router.get("/document/{document_id}", response_model=CsrDocumentRead)
-def get_csr_document_by_document_id(
+@router.get("/document/{document_id}", response_model=OutputDocumentRead)
+def get_output_document_by_document_id(
     document_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     document: Document = Depends(get_document_for_user_or_403),
 ):
     """
-    Get CSR document by Document ID.
+    Get Output Document by Document ID.
     
     Loads the Document by ID, ensures user has access to its study,
-    checks that document.type == "csr", and returns the linked CSRDocument.
-    If the CSRDocument doesn't exist, it will be created with default sections.
+    checks that document.type == "csr", and returns the linked OutputDocument.
+    If the OutputDocument doesn't exist, it will be created with default sections.
     
     Error Responses:
     - 400: Document type is not "csr"
@@ -80,61 +80,61 @@ def get_csr_document_by_document_id(
             detail=f"Document type must be 'csr', got '{document.type}'"
         )
     
-    # Get or create CSRDocument for this document
+    # Get or create OutputDocument for this document
     try:
-        csr_document = get_or_create_csr_for_document(document, current_user, db)
+        output_document = get_or_create_output_document_for_document(document, current_user, db)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     
-    return csr_document
+    return output_document
 
 
-@router.get("/{study_id}", response_model=CsrDocumentRead)
-def get_csr_document(
+@router.get("/{study_id}", response_model=OutputDocumentRead)
+def get_output_document(
     study_id: int,
     db: Session = Depends(get_db),
     study: Study = Depends(get_study_for_user_or_403),
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Get CSR document for a study.
+    Get Output Document for study.
     
     If the study doesn't exist, returns 404.
-    If the CSR document doesn't exist, it will be created with default sections.
-    Uses the normalized CSR loading function to ensure consistency with document-based endpoints.
+    If the Output Document doesn't exist, it will be created with default sections.
+    Uses the normalized OutputDocument loading function to ensure consistency with document-based endpoints.
     """
     
-    # Use normalized function that finds/creates Document and CSRDocument
-    csr_document = get_or_create_csr_for_study(
+    # Use normalized function that finds/creates Document and OutputDocument
+    output_document = get_or_create_output_document_for_study(
         study_id=study_id,
         user=current_user,
         db=db,
         title=f"CSR for {study.title}"
     )
     
-    return csr_document
+    return output_document
 
 
-@router.get("/{study_id}/sections", response_model=List[CsrSectionRead])
-def get_csr_sections(
+@router.get("/{study_id}/sections", response_model=List[OutputSectionRead])
+def get_output_sections(
     study_id: int,
     db: Session = Depends(get_db),
     study: Study = Depends(get_study_for_user_or_403),
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Get all sections for the CSR document of a study.
+    Get all sections for the Output Document of a study.
     
     If the study doesn't exist, returns 404.
-    If the CSR document doesn't exist, it will be created with default sections.
-    Uses the normalized CSR loading function to ensure consistency with document-based endpoints.
+    If the Output Document doesn't exist, it will be created with default sections.
+    Uses the normalized OutputDocument loading function to ensure consistency with document-based endpoints.
     """
     
-    # Use normalized function that finds/creates Document and CSRDocument
-    csr_document = get_or_create_csr_for_study(
+    # Use normalized function that finds/creates Document and OutputDocument
+    output_document = get_or_create_output_document_for_study(
         study_id=study_id,
         user=current_user,
         db=db,
@@ -142,22 +142,22 @@ def get_csr_sections(
     )
     
     # Return sections (ordered by order_index from the relationship)
-    return csr_document.sections
+    return output_document.sections
 
 
-@router.get("/sections/{section_id}/versions/latest", response_model=CsrSectionVersionRead)
+@router.get("/sections/{section_id}/versions/latest", response_model=OutputSectionVersionRead)
 def get_latest_section_version(
     section_id: int,
     db: Session = Depends(get_db),
 ):
     """
-    Get the latest version of a CSR section.
+    Get the latest version of an Output Document section.
     
     If the section doesn't exist, returns 404.
     If no versions exist, returns 404.
     """
     # Find section by section_id
-    section = db.query(CsrSection).filter(CsrSection.id == section_id).first()
+    section = db.query(OutputSection).filter(OutputSection.id == section_id).first()
     if not section:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -166,9 +166,9 @@ def get_latest_section_version(
     
     # Get latest version (ordered by created_at desc, then id desc as fallback)
     latest_version = (
-        db.query(CsrSectionVersion)
-        .filter(CsrSectionVersion.section_id == section_id)
-        .order_by(desc(CsrSectionVersion.created_at), desc(CsrSectionVersion.id))
+        db.query(OutputSectionVersion)
+        .filter(OutputSectionVersion.section_id == section_id)
+        .order_by(desc(OutputSectionVersion.created_at), desc(OutputSectionVersion.id))
         .first()
     )
     
@@ -183,22 +183,22 @@ def get_latest_section_version(
 
 @router.post(
     "/sections/{section_id}/versions",
-    response_model=CsrSectionVersionRead,
+    response_model=OutputSectionVersionRead,
     status_code=status.HTTP_201_CREATED
 )
 def create_section_version(
     section_id: int,
-    version_in: CsrSectionVersionCreate,
+    version_in: OutputSectionVersionCreate,
     db: Session = Depends(get_db),
 ):
     """
-    Create a new version for a CSR section.
+    Create a new version for an Output Document section.
     
     If the section doesn't exist, returns 404.
     Creates a new version with source="human".
     """
     # Verify that the section exists
-    section = db.query(CsrSection).filter(CsrSection.id == section_id).first()
+    section = db.query(OutputSection).filter(OutputSection.id == section_id).first()
     if not section:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -206,7 +206,7 @@ def create_section_version(
         )
     
     # Create new version
-    version = CsrSectionVersion(
+    version = OutputSectionVersion(
         section_id=section_id,
         text=version_in.text,
         created_by=version_in.created_by,
@@ -221,7 +221,7 @@ def create_section_version(
 
 @router.post(
     "/sections/{section_id}/apply-template",
-    response_model=CsrSectionVersionRead,
+    response_model=OutputSectionVersionRead,
     status_code=status.HTTP_201_CREATED
 )
 def apply_template_to_section(
@@ -231,17 +231,17 @@ def apply_template_to_section(
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Apply a text template to a CSR section.
+    Apply a text template to an Output Document section.
     
     Ensures that the section exists and belongs to the study_id from the request.
     Loads the template, builds context from study data, renders the template,
-    and creates a new CsrSectionVersion with the rendered text.
+    and creates a new OutputSectionVersion with the rendered text.
     """
     # Verify user has access to the study (study_id is in request body)
     verify_study_access(body.study_id, current_user.id, db)
     
     # Verify that the section exists
-    section = db.query(CsrSection).filter(CsrSection.id == section_id).first()
+    section = db.query(OutputSection).filter(OutputSection.id == section_id).first()
     if not section:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -249,11 +249,11 @@ def apply_template_to_section(
         )
     
     # Verify that the section belongs to the study_id from the request
-    document = db.query(CsrDocument).filter(CsrDocument.id == section.document_id).first()
+    document = db.query(OutputDocument).filter(OutputDocument.id == section.document_id).first()
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="CSR document not found for this section"
+            detail="Output document not found for this section"
         )
     
     if document.study_id != body.study_id:
@@ -289,8 +289,8 @@ def apply_template_to_section(
         template, context
     )
     
-    # Create a new CsrSectionVersion with rendered text
-    version = CsrSectionVersion(
+    # Create a new OutputSectionVersion with rendered text
+    version = OutputSectionVersion(
         section_id=section_id,
         text=rendered_text,
         source="template",
@@ -305,24 +305,24 @@ def apply_template_to_section(
 
 
 @router.get("/{study_id}/export/docx")
-def export_csr_document_to_docx(
+def export_output_document_to_docx(
     study_id: int,
     db: Session = Depends(get_db),
     study: Study = Depends(get_study_for_user_or_403),
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Export CSR document to DOCX format.
+    Export Output Document to DOCX format.
     
-    Finds CSRDocument by study_id, exports it to DOCX, and returns the file
+    Finds OutputDocument by study_id, exports it to DOCX, and returns the file
     with proper Content-Type and Content-Disposition headers.
     
     If the study doesn't exist, returns 404.
-    If the CSR document doesn't exist, it will be created with default sections.
-    Uses the normalized CSR loading function to ensure consistency with document-based endpoints.
+    If the Output Document doesn't exist, it will be created with default sections.
+    Uses the normalized OutputDocument loading function to ensure consistency with document-based endpoints.
     """
-    # Use normalized function that finds/creates Document and CSRDocument
-    csr_document = get_or_create_csr_for_study(
+    # Use normalized function that finds/creates Document and OutputDocument
+    output_document = get_or_create_output_document_for_study(
         study_id=study_id,
         user=current_user,
         db=db,
@@ -331,7 +331,7 @@ def export_csr_document_to_docx(
     
     # Export to DOCX
     try:
-        docx_bytes = export_csr_to_docx(csr_document.id, db)
+        docx_bytes = export_csr_to_docx(output_document.id, db)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -349,3 +349,4 @@ def export_csr_document_to_docx(
             "Content-Disposition": f'attachment; filename="{filename}"'
         }
     )
+

@@ -331,7 +331,8 @@ The correlation ID is also included in all log messages, allowing you to trace a
 
 ## CSR Endpoints
 
-> **Authorization:** Requires `Authorization: Bearer <token>` header. User must be a member of the study.
+> **Authorization:** Requires `Authorization: Bearer <token>` header. User must be a member of the study.  
+> **⚠️ DEPRECATED**: These endpoints are deprecated. Use the `/api/v1/output/...` endpoints instead. The CSR endpoints will be removed in a future major version but currently behave identically to the OutputDocument endpoints.
 
 ### Get CSR Document
 **Method:** `GET`  
@@ -361,7 +362,7 @@ The correlation ID is also included in all log messages, allowing you to trace a
 **Notes:**
 - If the CSR document doesn't exist for the study, it will be automatically created with default sections.
 - This endpoint uses the same normalized CSR loading logic as `GET /api/v1/csr/document/{document_id}`, ensuring consistent behavior.
-- Internally, it finds or creates a default `Document` of type "csr" for the study, then ensures the linked `CsrDocument` exists.
+- Internally, it finds or creates a default `Document` of type "csr" for the study, then ensures the linked `OutputDocument` exists.
 - The returned CSR document may have a `document_id` field linking it to the `Document` model for navigation consistency.
 
 **Error Responses:**
@@ -394,10 +395,10 @@ The correlation ID is also included in all log messages, allowing you to trace a
 
 **Notes:**
 - Loads the Document by ID, ensures user has access to its study, and checks that `document.type == "csr"`
-- Returns the linked CSRDocument structure for editing
-- If the CSRDocument doesn't exist for the Document, it will be automatically created with default sections
+- Returns the linked OutputDocument structure for editing
+- If the OutputDocument doesn't exist for the Document, it will be automatically created with default sections
 - The frontend can navigate by `document_id` instead of only by `study_id`
-- If a CSRDocument already exists for the study but is not linked to the Document, it will be linked automatically
+- If an OutputDocument already exists for the study but is not linked to the Document, it will be linked automatically
 - This endpoint uses the same normalized CSR loading logic as `GET /api/v1/csr/{study_id}`, ensuring consistent behavior
 - The returned `document_id` can be used consistently across CSR, QC, and RAG endpoints
 
@@ -552,6 +553,234 @@ The correlation ID is also included in all log messages, allowing you to trace a
 **Error Responses:**
 - `401/403`: Missing or invalid token, or user is not a member of the study
 - `404`: Study not found, or CSR document not found (after creation attempt)
+
+---
+
+## OutputDocument Endpoints
+
+> **Authorization:** Requires `Authorization: Bearer <token>` header. User must be a member of the study.
+
+The OutputDocument endpoints expose the OutputDocument domain, which represents structured editable documents (currently used for CSR/Clinical Study Reports). These endpoints replace the deprecated `/api/v1/csr/...` endpoints and use OutputDocument terminology.
+
+### Get Output Document
+**Method:** `GET`  
+**Path:** `/api/v1/output/{study_id}`
+
+**Path Parameters:**
+- `study_id` (integer, required): The ID of the study
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "study_id": 0,
+  "title": "string",
+  "status": "string",
+  "sections": [
+    {
+      "id": 0,
+      "code": "string",
+      "title": "string",
+      "order_index": 0
+    }
+  ]
+}
+```
+
+**Notes:**
+- If the Output Document doesn't exist for the study, it will be automatically created with default sections.
+- This endpoint uses the same normalized OutputDocument loading logic as `GET /api/v1/output/document/{document_id}`, ensuring consistent behavior.
+- Internally, it finds or creates a default `Document` of type "csr" for the study, then ensures the linked `OutputDocument` exists.
+- The returned Output Document may have a `document_id` field linking it to the `Document` model for navigation consistency.
+
+**Error Responses:**
+- `404`: Study not found
+
+### Get Output Document by Document ID
+**Method:** `GET`  
+**Path:** `/api/v1/output/document/{document_id}`
+
+**Path Parameters:**
+- `document_id` (integer, required): The ID of the Document (must be type "csr")
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "study_id": 0,
+  "title": "string",
+  "status": "string",
+  "sections": [
+    {
+      "id": 0,
+      "code": "string",
+      "title": "string",
+      "order_index": 0
+    }
+  ]
+}
+```
+
+**Notes:**
+- Loads the Document by ID, ensures user has access to its study, and checks that `document.type == "csr"`
+- Returns the linked OutputDocument structure for editing
+- If the OutputDocument doesn't exist for the Document, it will be automatically created with default sections
+- The frontend can navigate by `document_id` instead of only by `study_id`
+- If an OutputDocument already exists for the study but is not linked to the Document, it will be linked automatically
+- This endpoint uses the same normalized OutputDocument loading logic as `GET /api/v1/output/{study_id}`, ensuring consistent behavior
+- The returned `document_id` can be used consistently across OutputDocument, QC, and RAG endpoints
+
+**Error Responses:**
+- `400`: Document type is not "csr"
+- `403`: User is not a member of the study
+- `404`: Document or study not found
+
+### Get Output Document Sections
+**Method:** `GET`  
+**Path:** `/api/v1/output/{study_id}/sections`
+
+**Path Parameters:**
+- `study_id` (integer, required): The ID of the study
+
+**Response Body:**
+```json
+[
+  {
+    "id": 0,
+    "code": "string",
+    "title": "string",
+    "order_index": 0
+  }
+]
+```
+
+**Notes:**
+- Returns all sections for the Output Document of the study, ordered by `order_index`.
+- If the Output Document doesn't exist for the study, it will be automatically created with default sections.
+
+**Error Responses:**
+- `404`: Study not found
+
+### Get Latest Section Version
+**Method:** `GET`  
+**Path:** `/api/v1/output/sections/{section_id}/versions/latest`
+
+**Path Parameters:**
+- `section_id` (integer, required): The ID of the Output Document section
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "text": "string",
+  "created_at": "2024-01-01T00:00:00Z",
+  "created_by": "string | null",
+  "source": "string | null"
+}
+```
+
+**Error Responses:**
+- `404`: Section not found
+- `404`: No versions found for this section
+
+### Create Section Version
+**Method:** `POST`  
+**Path:** `/api/v1/output/sections/{section_id}/versions`
+
+**Path Parameters:**
+- `section_id` (integer, required): The ID of the Output Document section
+
+**Request Body:**
+```json
+{
+  "text": "string",
+  "created_by": "string | null"
+}
+```
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "text": "string",
+  "created_at": "2024-01-01T00:00:00Z",
+  "created_by": "string | null",
+  "source": "string | null"
+}
+```
+
+**Notes:**
+- Creates a new version with `source="human"`.
+- Returns status code `201 Created`.
+
+**Error Responses:**
+- `404`: Section not found
+
+### Apply Template to Section
+**Method:** `POST`  
+**Path:** `/api/v1/output/sections/{section_id}/apply-template`
+
+**Path Parameters:**
+- `section_id` (integer, required): The ID of the Output Document section
+
+**Request Body:**
+```json
+{
+  "template_id": 0,
+  "study_id": 0,
+  "extra_context": {}
+}
+```
+
+**Response Body:**
+```json
+{
+  "id": 0,
+  "text": "string",
+  "created_at": "2024-01-01T00:00:00Z",
+  "created_by": "string | null",
+  "source": "template",
+  "template_id": 0
+}
+```
+
+**Notes:**
+- Requires authentication
+- Creates a new section version with rendered template content
+- Template is rendered with context from study data and RAG chunks
+- Returns status code `201 Created`
+- The response includes `template_id` field linking to the template used
+
+**Error Responses:**
+- `400`: Section does not belong to the specified study
+- `401/403`: Missing or invalid token, or user is not a member of the study
+- `404`: Section, study, or template not found
+
+### Export Output Document to DOCX
+**Method:** `GET`  
+**Path:** `/api/v1/output/{study_id}/export/docx`
+
+**Path Parameters:**
+- `study_id` (integer, required): The ID of the study
+
+**Response:**
+- Content-Type: `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+- Content-Disposition: `attachment; filename="csr_{study_code}.docx"`
+- Body: Binary DOCX file content
+
+**Notes:**
+- Requires authentication (user must be a member of the study)
+- If the Output Document doesn't exist, it will be automatically created with default sections
+- Exports the Output Document with all sections and their latest versions
+- Document structure:
+  - Document title as main heading (centered)
+  - Section titles as level 1 headings
+  - Section text as paragraphs
+- Filename is generated as `csr_{study_code}.docx` or `csr_{study_id}.docx` if code is not available
+
+**Error Responses:**
+- `401/403`: Missing or invalid token, or user is not a member of the study
+- `404`: Study not found, or Output Document not found (after creation attempt)
 
 ---
 
@@ -1046,8 +1275,8 @@ The correlation ID is also included in all log messages, allowing you to trace a
 
 **Notes:**
 - Accepts a `Document.id` (the Document with `type="csr"`)
-- Automatically resolves the linked `CsrDocument` and runs QC rules on it
-- If the `CsrDocument` doesn't exist for the Document, it will be automatically created
+- Automatically resolves the linked `OutputDocument` and runs QC rules on it
+- If the `OutputDocument` doesn't exist for the Document, it will be automatically created
 - Requires access to the study that owns the document
 - Returns the number of issues created
 - The same `document_id` can be used across CSR, QC, and RAG endpoints for consistent navigation
@@ -1151,6 +1380,10 @@ The correlation ID is also included in all log messages, allowing you to trace a
 
 ## Navigation and Document Structure
 
+### Terminology
+
+**OutputDocument Terminology**: The structured editable document for documents of type `"csr"` is called `OutputDocument` in the codebase and API. The term "CSR" (Clinical Study Report) refers specifically to the document type (`Document.type == "csr"`), while `OutputDocument` is the structured representation used for editing sections and versions. The `/api/v1/output/*` endpoints are the official API for OutputDocument operations. The deprecated `/api/v1/csr/*` endpoints are thin wrappers that delegate to the output endpoints and will be removed in a future major version.
+
 ### Document-Based Navigation
 
 The frontend can navigate by `document_id` for CSR, QC, and RAG operations. This provides a consistent identifier across all endpoints.
@@ -1163,19 +1396,19 @@ The frontend can navigate by `document_id` for CSR, QC, and RAG operations. This
    - `study_id`: The study this document belongs to
    - `title`, `status`, etc.
 
-2. **CSRDocument Model**: The `CsrDocument` model represents the CSR-specific structure with:
-   - `id`: Unique CSR document identifier
-   - `study_id`: The study this CSR belongs to
+2. **OutputDocument Model**: The `OutputDocument` model represents the structured document for documents of type `"csr"` with:
+   - `id`: Unique OutputDocument identifier
+   - `study_id`: The study this OutputDocument belongs to
    - `document_id`: Link to the `Document` (nullable, for backward compatibility)
-   - `sections`: List of CSR sections
+   - `sections`: List of OutputDocument sections
 
 3. **Relationship**: 
-   - A `Document` with `type="csr"` can have a linked `CsrDocument`
-   - The `CsrDocument.document_id` field links to `Document.id`
-   - When accessing CSR endpoints by `document_id`, the system automatically:
+   - A `Document` with `type="csr"` can have a linked `OutputDocument`
+   - The `OutputDocument.document_id` field links to `Document.id`
+   - When accessing OutputDocument endpoints by `document_id`, the system automatically:
      - Finds the `Document` with `type="csr"`
-     - Gets or creates the linked `CsrDocument`
-     - Returns the CSR structure for editing
+     - Gets or creates the linked `OutputDocument`
+     - Returns the OutputDocument structure for editing
 
 **Navigation Flow:**
 
@@ -1183,33 +1416,34 @@ The frontend can navigate by `document_id` for CSR, QC, and RAG operations. This
    - Returns all documents for the study, including CSR documents
    - Each CSR document has a `Document.id` that can be used for navigation
 
-2. **Frontend navigates to CSR**: `GET /api/v1/csr/document/{document_id}`
+2. **Frontend navigates to OutputDocument**: `GET /api/v1/output/document/{document_id}`
    - Uses the `Document.id` from step 1
-   - Backend automatically resolves the linked `CsrDocument`
-   - Returns CSR structure with sections
+   - Backend automatically resolves the linked `OutputDocument`
+   - Returns OutputDocument structure with sections
 
 3. **Frontend runs QC**: `POST /api/v1/qc/documents/{document_id}/run`
    - Uses the same `Document.id`
-   - Backend resolves `CsrDocument` and runs QC rules
+   - Backend resolves `OutputDocument` and runs QC rules
 
 4. **Frontend gets QC issues**: `GET /api/v1/qc/studies/{study_id}/issues?document_id={document_id}`
    - Filters issues by the same `Document.id`
 
 **Backward Compatibility:**
 
-- Study-based endpoints (`GET /api/v1/csr/{study_id}`) still work and use the same internal logic
+- Deprecated study-based endpoints (`GET /api/v1/csr/{study_id}`) still work and use the same internal logic
 - They automatically find or create a default `Document` of type "csr" for the study
-- Both study-based and document-based endpoints now use the same normalized CSR loading function internally
+- Both study-based and document-based endpoints use the same normalized OutputDocument loading function internally
+- The `/api/v1/csr/*` endpoints are deprecated wrappers that delegate to `/api/v1/output/*` endpoints
 
 **Consistent Behavior:**
 
-Both `GET /api/v1/csr/{study_id}` and `GET /api/v1/csr/document/{document_id}` use the same internal logic:
+Both `GET /api/v1/output/{study_id}` and `GET /api/v1/output/document/{document_id}` use the same internal logic:
 - Find or create a `Document` of type "csr" for the study
-- Get or create the linked `CsrDocument`
+- Get or create the linked `OutputDocument`
 - Ensure default sections exist
-- Return the CSR structure
+- Return the OutputDocument structure
 
-This ensures that regardless of which endpoint the frontend uses, the same CSR structure is returned and the same `document_id` can be used for subsequent operations.
+This ensures that regardless of which endpoint the frontend uses, the same OutputDocument structure is returned and the same `document_id` can be used for subsequent operations.
 
 ---
 

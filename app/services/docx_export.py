@@ -5,14 +5,14 @@ from sqlalchemy import desc
 from docx import Document
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
-from app.models.csr import CsrDocument, CsrSection, CsrSectionVersion
+from app.models.output_document import OutputDocument, OutputSection, OutputSectionVersion
 
 
 def export_csr_to_docx(document_id: int, db: Session) -> bytes:
     """
-    Export CSR document to DOCX format.
+    Export OutputDocument to DOCX format.
     
-    Loads CsrDocument and related CsrSection + latest CsrSectionVersion for each section.
+    Loads OutputDocument and related OutputSection + latest OutputSectionVersion for each section.
     Creates a DOCX document with:
     - Document title as main heading
     - Section titles as level 1 headings
@@ -28,8 +28,8 @@ def export_csr_to_docx(document_id: int, db: Session) -> bytes:
     Raises:
         ValueError: If document not found
     """
-    # Load CSR document
-    document = db.query(CsrDocument).filter(CsrDocument.id == document_id).first()
+    # Load OutputDocument
+    document = db.query(OutputDocument).filter(OutputDocument.id == document_id).first()
     if not document:
         raise ValueError(f"CSR document with id {document_id} not found")
     
@@ -42,9 +42,9 @@ def export_csr_to_docx(document_id: int, db: Session) -> bytes:
     
     # Load sections ordered by order_index
     sections = (
-        db.query(CsrSection)
-        .filter(CsrSection.document_id == document_id)
-        .order_by(CsrSection.order_index)
+        db.query(OutputSection)
+        .filter(OutputSection.document_id == document_id)
+        .order_by(OutputSection.order_index)
         .all()
     )
     
@@ -55,9 +55,9 @@ def export_csr_to_docx(document_id: int, db: Session) -> bytes:
         
         # Get the latest version for this section
         latest_version = (
-            db.query(CsrSectionVersion)
-            .filter(CsrSectionVersion.section_id == section.id)
-            .order_by(desc(CsrSectionVersion.created_at), desc(CsrSectionVersion.id))
+            db.query(OutputSectionVersion)
+            .filter(OutputSectionVersion.section_id == section.id)
+            .order_by(desc(OutputSectionVersion.created_at), desc(OutputSectionVersion.id))
             .first()
         )
         
