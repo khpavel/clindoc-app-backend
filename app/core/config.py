@@ -1,7 +1,7 @@
 import os
 import logging
 from pydantic_settings import BaseSettings
-from pydantic import ValidationError
+from pydantic import ValidationError, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +41,22 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60  # ACCESS_TOKEN_EXPIRE_MINUTES - token expiration time
     
     # Storage settings
-    storage_dir: str = "storage"  # STORAGE_DIR - base directory for uploaded source documents
+    storage_dir: str = "storage"  # STORAGE_DIR - base directory for uploaded source documents (should be set via ENV in production)
     
     # AI settings
     ai_mode: str = "stub"  # AI_MODE - AI implementation mode: "stub" or "real"
+    ai_endpoint: str | None = None  # AI_ENDPOINT - HTTP endpoint URL for the LLM API (required when ai_mode="real")
+    ai_api_key: str | None = None  # AI_API_KEY - API key for authentication (optional, depending on provider)
+
+    @model_validator(mode='after')
+    def validate_storage_dir_prod(self):
+        """Warn if using default storage_dir in production."""
+        if self.app_env.lower() == "prod" and self.storage_dir == "storage":
+            logger.warning(
+                "Using default 'storage' directory in production. "
+                "Consider setting STORAGE_DIR environment variable explicitly."
+            )
+        return self
 
     class Config:
         env_file = _get_env_file_list()

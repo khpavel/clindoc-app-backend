@@ -1,9 +1,10 @@
 import datetime
 import logging
-import os
 from typing import Any
 
 import httpx
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +39,16 @@ async def generate_section_text_real(
     Real LLM implementation that calls external LLM via HTTP.
     Returns (generated_text, model_name).
     
-    Configuration:
-    - AI_ENDPOINT: HTTP endpoint URL for the LLM API
-    - AI_API_KEY: API key for authentication (optional, depending on provider)
+    Configuration from settings:
+    - ai_endpoint: HTTP endpoint URL for the LLM API (required when ai_mode="real")
+    - ai_api_key: API key for authentication (optional, depending on provider)
     """
-    # Get configuration from environment
-    ai_endpoint = os.getenv("AI_ENDPOINT")
-    ai_api_key = os.getenv("AI_API_KEY")
+    # Get configuration from settings
+    ai_endpoint = settings.ai_endpoint
+    ai_api_key = settings.ai_api_key
     
     if not ai_endpoint:
-        raise ValueError("AI_ENDPOINT environment variable is not set")
+        raise ValueError("AI_ENDPOINT environment variable is not set (required when ai_mode='real')")
     
     # Prepare request payload
     # This is a placeholder structure - adjust based on your LLM provider's API

@@ -1,16 +1,23 @@
 import logging
 import sys
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
-# Configure logging
+from app.core.config import settings
+from app.core.middleware import CorrelationIdMiddleware, CorrelationIdFilter
+
+# Configure logging based on environment
+log_level = logging.WARNING if settings.app_env.lower() == "prod" else logging.INFO
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=log_level,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(correlation_id)s] - %(message)s',
     handlers=[logging.StreamHandler(sys.stdout)]
 )
+
+# Apply correlation_id filter to root logger
+logging.getLogger().addFilter(CorrelationIdFilter())
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +76,9 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+# Add correlation_id middleware (should be first to set correlation_id for all requests)
+app.add_middleware(CorrelationIdMiddleware)
+
 # CORS configuration
 origins = [
     "http://localhost:5173",
@@ -84,26 +94,70 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTPException and add correlation_id to response."""
+    # Get correlation_id from request state
+    correlation_id = getattr(request.state, "correlation_id", "N/A")
+    
+    # Log the HTTP exception with correlation_id
+    logger.warning(
+        f"HTTP {exc.status_code} on {request.method} {request.url.path}: {exc.detail}",
+        extra={"correlation_id": correlation_id}
+    )
+    
+    # Add correlation_id to response
+    response_content = exc.detail
+    if isinstance(response_content, dict):
+        response_content["correlation_id"] = correlation_id
+    elif isinstance(response_content, str):
+        response_content = {
+            "detail": response_content,
+            "correlation_id": correlation_id
+        }
+    else:
+        response_content = {
+            "detail": str(response_content),
+            "correlation_id": correlation_id
+        }
+    
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=response_content,
+        headers=exc.headers
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    """Handle all unhandled exceptions."""
+    # Get correlation_id from request state
+    correlation_id = getattr(request.state, "correlation_id", "N/A")
+    
+    # Log error with correlation_id and full traceback (but don't send traceback to client)
     logger.error(
         f"Unhandled exception on {request.method} {request.url.path}: {exc}",
-        exc_info=True
+        exc_info=True,
+        extra={"correlation_id": correlation_id}
     )
-    # In development, return more details about the error
-    import os
-    if os.environ.get("APP_ENV", "dev").lower() == "dev":
-        return JSONResponse(
-            status_code=500,
-            content={
-                "detail": "Internal server error",
-                "error": str(exc),
-                "type": type(exc).__name__
-            }
-        )
+    
+    # In production, only return generic error message
+    # Traceback is logged but not sent to client
+    response_content = {
+        "detail": "Internal server error",
+        "correlation_id": correlation_id
+    }
+    
+    # In development, include more details (but still no traceback)
+    if settings.app_env.lower() == "dev":
+        response_content.update({
+            "error": str(exc),
+            "type": type(exc).__name__
+        })
+    
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error"}
+        content=response_content
     )
 
 
