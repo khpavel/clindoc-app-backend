@@ -12,6 +12,7 @@ from app.schemas.user import TokenData
 
 # Use HTTPBearer for simpler Swagger UI integration
 http_bearer = HTTPBearer()
+http_bearer_optional = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
@@ -57,4 +58,34 @@ def get_current_active_user(
             detail="Inactive user"
         )
     return current_user
+
+
+def optional_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(http_bearer_optional),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """
+    Get the current authenticated user if a valid token is provided, otherwise return None.
+    
+    This is useful for endpoints that work both with and without authentication.
+    """
+    if credentials is None:
+        return None
+    
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[settings.algorithm]
+        )
+        username: Optional[str] = payload.get("sub")
+        if username is None:
+            return None
+        token_data = TokenData(username=username)
+    except JWTError:
+        return None
+    
+    user = db.query(User).filter(User.username == token_data.username).first()
+    return user
 

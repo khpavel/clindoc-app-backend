@@ -19,6 +19,8 @@ class OutputDocument(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft")
     document_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("documents.id"), nullable=True, index=True)
+    # Content language of the document ("ru" or "en")
+    language: Mapped[str] = mapped_column(String(2), nullable=False, default="ru")
 
     # Relationships
     study: Mapped["Study"] = relationship("Study", back_populates="csr_document")

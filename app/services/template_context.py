@@ -10,10 +10,20 @@ def build_template_context(
     db: Session,
     study_id: int,
     extra_context: dict[str, Any] | None = None,
+    language: str = "ru",
 ) -> dict[str, Any]:
     """
     Load the Study and build a base context dict for template rendering.
     Extra context keys override or extend the base context.
+    
+    Args:
+        db: Database session
+        study_id: ID of the study
+        extra_context: Optional additional context variables
+        language: Language code ("ru" or "en") - accepted for future language-specific context logic
+    
+    Returns:
+        Dictionary of context variables for template rendering
     """
     study = db.query(Study).filter(Study.id == study_id).first()
     if not study:

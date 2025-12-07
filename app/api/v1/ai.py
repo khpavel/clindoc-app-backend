@@ -14,12 +14,15 @@ from app.services.rag_retrieval import retrieve_rag_chunks, build_rag_context_te
 from app.services.template_context import build_template_context
 from app.services.template_renderer import render_template_content
 from app.services.ai_prompt_builder import build_generate_section_prompt
+from app.services.language_resolver import resolve_content_language
 from app.core.config import settings
 from sqlalchemy import desc
 
 from app.deps.auth import get_current_active_user
 from app.deps.study_access import verify_study_access
+from app.deps.language import get_request_language
 from app.models.user import User
+from app.models.document import Document
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -29,12 +32,16 @@ async def generate_section_text(
     body: GenerateSectionTextRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    request_language: str = Depends(get_request_language),
 ):
     """
     Generate CSR section text using AI.
     
     Validates that the section belongs to the study's CSR document,
     calls the AI service, logs the call, and returns the generated text.
+    
+    Uses the document's content language (if available) for AI generation,
+    rather than the UI/request language.
     """
     # Verify user has access to the study
     study = verify_study_access(body.study_id, current_user.id, db)
@@ -48,18 +55,26 @@ async def generate_section_text(
         )
     
     # Validate that the section belongs to OutputDocument of body.study_id
-    document = db.query(OutputDocument).filter(OutputDocument.id == section.document_id).first()
-    if not document:
+    output_document = db.query(OutputDocument).filter(OutputDocument.id == section.document_id).first()
+    if not output_document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="CSR document not found for this section"
         )
     
-    if document.study_id != body.study_id:
+    if output_document.study_id != body.study_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Section does not belong to study"
         )
+    
+    # Get the Document linked to this OutputDocument (if any) to determine content language
+    document = None
+    if output_document.document_id:
+        document = db.query(Document).filter(Document.id == output_document.document_id).first()
+    
+    # Resolve content language for AI generation
+    content_language = resolve_content_language(document, current_user, request_language)
     
     # Get current section text (latest version if exists)
     current_text = None
@@ -72,18 +87,18 @@ async def generate_section_text(
     if latest_version:
         current_text = latest_version.text
     
-    # Retrieve RAG chunks and build context
-    chunks_by_type = retrieve_rag_chunks(db, study_id=body.study_id)
+    # Retrieve RAG chunks and build context (filtered by content language)
+    chunks_by_type = retrieve_rag_chunks(db, study_id=body.study_id, content_language=content_language)
     rag_context_by_source_type = build_rag_context_text(chunks_by_type)
     
-    # Get prompt template for this section
-    # Try to find a prompt template by section_code, type="prompt", language="ru", is_active=True
+    # Get prompt template for this section (using content language)
+    # Try to find a prompt template by section_code, type="prompt", matching language, is_active=True
     prompt_template = (
         db.query(Template)
         .filter(
             Template.type == "prompt",
             Template.section_code == section.code,
-            Template.language == "ru",
+            Template.language == content_language,
             Template.is_active == True,
         )
         .order_by(Template.is_default.desc(), Template.version.desc())
@@ -93,7 +108,7 @@ async def generate_section_text(
     # Build effective prompt string
     if prompt_template:
         # Build base template context with study info
-        base_context = build_template_context(db, body.study_id)
+        base_context = build_template_context(db, body.study_id, language=content_language)
         # Map context dict keys to template variable names
         # e.g., "protocol" -> "context_protocol", "sap" -> "context_sap", etc.
         template_context_vars = {
@@ -105,16 +120,17 @@ async def generate_section_text(
         # Merge with RAG context variables
         full_context = {**base_context, **template_context_vars}
         # Render the template
-        rendered_prompt, _, _ = render_template_content(prompt_template, full_context)
+        rendered_prompt, _, _ = render_template_content(prompt_template, full_context, language=content_language)
         effective_prompt = rendered_prompt
     else:
-        # Use prompt builder to construct the prompt
+        # Use prompt builder to construct the prompt (using content language)
         effective_prompt = build_generate_section_prompt(
             study=study,
             section=section,
             current_text=current_text,
             rag_context_by_source_type=rag_context_by_source_type,
             user_prompt=body.prompt,
+            language=content_language,
         )
     
     try:
@@ -127,13 +143,14 @@ async def generate_section_text(
             generate_func = generate_section_text_stub
             mode = "stub"
         
-        # Call the selected function to get (generated_text, model_name)
+        # Call the selected function to get (generated_text, model_name) using content language
         generated_text, model_name = await generate_func(
             study_id=body.study_id,
             section_id=body.section_id,
             prompt=effective_prompt,
             max_tokens=body.max_tokens,
             temperature=body.temperature,
+            language=content_language,
         )
         
         # Create an AiCallLog record with success=True, including mode

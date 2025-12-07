@@ -12,6 +12,7 @@ from app.schemas.template import (
 )
 from app.services.template_context import build_template_context
 from app.services.template_renderer import render_template_content
+from app.deps.language import get_request_language
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
@@ -54,6 +55,7 @@ def render_template(
     template_id: int,
     body: TemplateRenderRequest,
     db: Session = Depends(get_db),
+    language: str = Depends(get_request_language),
 ):
     """
     Render a template with the provided context.
@@ -70,10 +72,10 @@ def render_template(
         )
     
     # Build the base context
-    ctx = build_template_context(db, body.study_id, extra_context=body.extra_context or {})
+    ctx = build_template_context(db, body.study_id, extra_context=body.extra_context or {}, language=language)
     
     # Render template
-    rendered_text, used_vars, missing_vars = render_template_content(template, ctx)
+    rendered_text, used_vars, missing_vars = render_template_content(template, ctx, language=language)
     
     return TemplateRenderResponse(
         rendered_text=rendered_text,

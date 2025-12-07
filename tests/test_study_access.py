@@ -105,3 +105,76 @@ def test_study_editor_can_access_study(db: Session, test_user: User, test_study:
     result = verify_study_access(test_study.id, test_user.id, db)
     assert result.id == test_study.id
 
+
+def test_study_not_found_message_in_russian(db: Session, test_user: User):
+    """
+    Test that error message for non-existent study is in Russian when language="ru".
+    """
+    nonexistent_study_id = 99999
+    
+    with pytest.raises(HTTPException) as exc_info:
+        verify_study_access(nonexistent_study_id, test_user.id, db, language="ru")
+    
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+    # Should be Russian message
+    assert "Исследование не найдено" in exc_info.value.detail
+
+
+def test_study_not_found_message_in_english(db: Session, test_user: User):
+    """
+    Test that error message for non-existent study is in English when language="en".
+    """
+    nonexistent_study_id = 99999
+    
+    with pytest.raises(HTTPException) as exc_info:
+        verify_study_access(nonexistent_study_id, test_user.id, db, language="en")
+    
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+    # Should be English message
+    assert "Study not found" in exc_info.value.detail
+
+
+def test_access_denied_message_in_russian(db: Session, test_user: User, test_study: Study, other_user: User):
+    """
+    Test that access denied message is in Russian when language="ru".
+    """
+    # Create a StudyMember for a different user
+    study_member = StudyMember(
+        user_id=other_user.id,
+        study_id=test_study.id,
+        role="owner"
+    )
+    db.add(study_member)
+    db.commit()
+    
+    # Try to access the study as test_user (who is not a member)
+    with pytest.raises(HTTPException) as exc_info:
+        verify_study_access(test_study.id, test_user.id, db, language="ru")
+    
+    assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+    # Should contain Russian text (check for Cyrillic characters or key Russian words)
+    detail = exc_info.value.detail
+    # The message should be in Russian - check for common Russian words or Cyrillic
+    assert any(ord(c) >= 0x0400 and ord(c) <= 0x04FF for c in detail) or "Доступ" in detail
+
+
+def test_access_denied_message_in_english(db: Session, test_user: User, test_study: Study, other_user: User):
+    """
+    Test that access denied message is in English when language="en".
+    """
+    # Create a StudyMember for a different user
+    study_member = StudyMember(
+        user_id=other_user.id,
+        study_id=test_study.id,
+        role="owner"
+    )
+    db.add(study_member)
+    db.commit()
+    
+    # Try to access the study as test_user (who is not a member)
+    with pytest.raises(HTTPException) as exc_info:
+        verify_study_access(test_study.id, test_user.id, db, language="en")
+    
+    assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+    # Should be English message
+    assert "Access denied" in exc_info.value.detail or "not a member" in exc_info.value.detail.lower()

@@ -21,6 +21,8 @@ class Document(Base):
     template_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft")  # e.g. "draft", "in_qc", "ready_for_submission", "archived"
     current_version_label: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Content language of the document ("ru" or "en")
+    language: Mapped[str] = mapped_column(String(2), nullable=False, default="ru")
     created_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -6,10 +6,12 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.deps.auth import get_current_active_user
 from app.deps.study_access import get_study_for_user_or_403, verify_study_editor_access
+from app.deps.language import get_request_language
 from app.models.document import Document
 from app.models.study import Study
 from app.models.user import User
 from app.schemas.document import DocumentCreate, DocumentRead
+from app.services.language_resolver import resolve_content_language
 
 router = APIRouter(prefix="/studies", tags=["documents"])
 
@@ -93,15 +95,29 @@ def create_document(
     document_in: DocumentCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    request_language: str = Depends(get_request_language),
 ):
     """
     Create a new document for a study.
     
     Only study owners and editors can create documents.
     The document is created with status "draft" by default.
+    
+    If language is not provided in document_in, it defaults to:
+    1. User's ui_language preference (if set)
+    2. Request language (from Accept-Language header)
+    3. "ru" as final fallback
     """
     # Verify user has editor access (owner or editor role)
-    verify_study_editor_access(study_id, current_user.id, db)
+    verify_study_editor_access(study_id, current_user.id, db, language=request_language)
+    
+    # Determine document language: use provided language or resolve from user/request
+    document_language = document_in.language
+    if not document_language or document_language not in ("ru", "en"):
+        # Resolve language from user preference or request language
+        # Create a temporary document-like object for resolve_content_language
+        # Since document doesn't exist yet, pass None
+        document_language = resolve_content_language(None, current_user, request_language)
     
     # Create the document
     document = Document(
@@ -111,6 +127,7 @@ def create_document(
         template_code=document_in.template_code,
         status=document_in.status,
         current_version_label=document_in.current_version_label,
+        language=document_language,
         created_by=current_user.id,
     )
     db.add(document)

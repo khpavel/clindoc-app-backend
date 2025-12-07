@@ -12,8 +12,10 @@ from app.models.user import User
 from app.schemas.qc import QCIssueRead, QCIssueListResponse, QCRunResponse
 from app.deps.auth import get_current_active_user
 from app.deps.study_access import get_study_for_user_or_403, verify_study_access
+from app.deps.language import get_request_language
 from app.services.qc_rules import run_qc_rules_for_document
 from app.services.output_document_document_link import get_or_create_output_document_for_document
+from app.services.language_resolver import resolve_content_language
 
 router = APIRouter(prefix="/qc", tags=["qc"])
 
@@ -23,6 +25,7 @@ def run_qc_for_document(
     document_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    request_language: str = Depends(get_request_language),
 ):
     """
     Запустить набор базовых правил QC на документ и создать Issues.
@@ -31,6 +34,9 @@ def run_qc_for_document(
     на связанном OutputDocument. Если OutputDocument не существует, он будет создан.
     
     Требует доступ к исследованию, к которому принадлежит документ.
+    
+    Использует язык контента документа (document.language) для QC проверки,
+    а не язык интерфейса/запроса.
     """
     # Загрузить Document (не OutputDocument)
     document = db.query(Document).filter(Document.id == document_id).first()
@@ -48,7 +54,7 @@ def run_qc_for_document(
         )
     
     # Проверить доступ к исследованию
-    verify_study_access(document.study_id, current_user.id, db)
+    verify_study_access(document.study_id, current_user.id, db, language=request_language)
     
     # Получить или создать OutputDocument для этого Document
     try:
@@ -59,8 +65,11 @@ def run_qc_for_document(
             detail=str(e)
         )
     
-    # Запустить QC правила на OutputDocument
-    issues = run_qc_rules_for_document(db, output_document.id, output_document.study_id)
+    # Resolve content language for QC checks
+    content_language = resolve_content_language(document, current_user, request_language)
+    
+    # Запустить QC правила на OutputDocument (using content language)
+    issues = run_qc_rules_for_document(db, output_document.id, output_document.study_id, language=content_language)
     
     return QCRunResponse(
         document_id=document_id,
@@ -77,6 +86,7 @@ def get_qc_issues(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     study: Study = Depends(get_study_for_user_or_403),
+    language: str = Depends(get_request_language),
 ):
     """
     Получить список QC issues для исследования с фильтрами по статусу и серьёзности.
@@ -123,6 +133,7 @@ def get_qc_issues_for_study(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     study: Study = Depends(get_study_for_user_or_403),
+    language: str = Depends(get_request_language),
 ):
     """
     Получить список QC issues для исследования с фильтрами по документу, статусу и серьёзности.

@@ -3,22 +3,30 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.deps.auth import get_current_active_user
+from app.deps.language import get_request_language
 from app.models.study import Study
 from app.models.study_member import StudyMember
 from app.models.user import User
+from app.i18n import t
 
 
-def verify_study_access(study_id: int, user_id: int, db: Session) -> Study:
+def verify_study_access(study_id: int, user_id: int, db: Session, language: str = "en") -> Study:
     """
     Helper function to verify user access to a study.
     Returns the Study if access is granted, raises HTTPException if not.
+    
+    Args:
+        study_id: ID of the study
+        user_id: ID of the user
+        db: Database session
+        language: Language code for error messages ("ru" or "en")
     """
     # First check if study exists
     study = db.query(Study).filter(Study.id == study_id).first()
     if not study:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Study not found"
+            detail=t("ERROR_STUDY_NOT_FOUND", language)
         )
     
     # Check if user is a member of the study
@@ -34,7 +42,7 @@ def verify_study_access(study_id: int, user_id: int, db: Session) -> Study:
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: You are not a member of this study"
+            detail=t("ERROR_ACCESS_DENIED_NOT_MEMBER", language)
         )
     
     return study
@@ -43,7 +51,8 @@ def verify_study_access(study_id: int, user_id: int, db: Session) -> Study:
 def get_study_for_user_or_403(
     study_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    language: str = Depends(get_request_language),
 ) -> Study:
     """
     Dependency that verifies the current user has access to the study.
@@ -54,22 +63,28 @@ def get_study_for_user_or_403(
     
     Use this as a dependency for endpoints where study_id is a path parameter.
     """
-    return verify_study_access(study_id, current_user.id, db)
+    return verify_study_access(study_id, current_user.id, db, language=language)
 
 
-def verify_study_management_access(study_id: int, user_id: int, db: Session) -> Study:
+def verify_study_management_access(study_id: int, user_id: int, db: Session, language: str = "en") -> Study:
     """
     Helper function to verify user has management access to a study (owner or admin).
     Returns the Study if access is granted, raises HTTPException if not.
     
     Currently only checks for owner role. Can be extended to check for global admin role.
+    
+    Args:
+        study_id: ID of the study
+        user_id: ID of the user
+        db: Database session
+        language: Language code for error messages ("ru" or "en")
     """
     # First check if study exists
     study = db.query(Study).filter(Study.id == study_id).first()
     if not study:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Study not found"
+            detail=t("ERROR_STUDY_NOT_FOUND", language)
         )
     
     # Check if user is an owner of the study
@@ -87,7 +102,7 @@ def verify_study_management_access(study_id: int, user_id: int, db: Session) -> 
         # TODO: Add check for global admin role when implemented
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: Only study owners can manage members"
+            detail=t("ERROR_ACCESS_DENIED_MANAGEMENT", language)
         )
     
     return study
@@ -96,7 +111,8 @@ def verify_study_management_access(study_id: int, user_id: int, db: Session) -> 
 def get_study_for_management_or_403(
     study_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    language: str = Depends(get_request_language),
 ) -> Study:
     """
     Dependency that verifies the current user has management access to the study.
@@ -107,22 +123,28 @@ def get_study_for_management_or_403(
     
     Use this as a dependency for endpoints that require managing study members.
     """
-    return verify_study_management_access(study_id, current_user.id, db)
+    return verify_study_management_access(study_id, current_user.id, db, language=language)
 
 
-def verify_study_editor_access(study_id: int, user_id: int, db: Session) -> Study:
+def verify_study_editor_access(study_id: int, user_id: int, db: Session, language: str = "en") -> Study:
     """
     Helper function to verify user has editor access to a study (owner or editor).
     Returns the Study if access is granted, raises HTTPException if not.
     
     This is used for operations that require owner or editor role (e.g., uploading/deleting source documents).
+    
+    Args:
+        study_id: ID of the study
+        user_id: ID of the user
+        db: Database session
+        language: Language code for error messages ("ru" or "en")
     """
     # First check if study exists
     study = db.query(Study).filter(Study.id == study_id).first()
     if not study:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Study not found"
+            detail=t("ERROR_STUDY_NOT_FOUND", language)
         )
     
     # Check if user is a member of the study
@@ -138,14 +160,14 @@ def verify_study_editor_access(study_id: int, user_id: int, db: Session) -> Stud
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: You are not a member of this study"
+            detail=t("ERROR_ACCESS_DENIED_NOT_MEMBER", language)
         )
     
     # Check if user has owner or editor role (viewer is not allowed)
     if membership.role not in ("owner", "editor"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: Only study owners and editors can perform this action"
+            detail=t("ERROR_ACCESS_DENIED_EDITOR", language)
         )
     
     return study
@@ -154,7 +176,8 @@ def verify_study_editor_access(study_id: int, user_id: int, db: Session) -> Stud
 def get_study_for_editor_or_403(
     study_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    language: str = Depends(get_request_language),
 ) -> Study:
     """
     Dependency that verifies the current user has editor access to the study (owner or editor).
@@ -165,4 +188,4 @@ def get_study_for_editor_or_403(
     
     Use this as a dependency for endpoints that require owner/editor role (e.g., source document operations).
     """
-    return verify_study_editor_access(study_id, current_user.id, db)
+    return verify_study_editor_access(study_id, current_user.id, db, language=language)

@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.models.qc import QCRule, QCIssue, QCRuleSeverity, QCIssueStatus
 from app.models.output_document import OutputDocument, OutputSection
 from app.services.output_document_defaults import DEFAULT_CSR_SECTIONS
+from app.services.qc_config import get_qc_rule_config
+from app.i18n import t
 
 
 def get_or_create_required_sections_rule(db: Session) -> QCRule:
@@ -29,11 +31,14 @@ def get_or_create_required_sections_rule(db: Session) -> QCRule:
 def check_required_sections(
     db: Session,
     document_id: int,
-    study_id: int
+    study_id: int,
+    language: str = "ru",
 ) -> list[QCIssue]:
     """
     Проверка наличия всех обязательных секций в документе.
     Создаёт QCIssue для каждой отсутствующей обязательной секции.
+    
+    Uses language-specific QC configuration to determine rule behavior.
     
     Returns:
         Список созданных QCIssue
@@ -42,6 +47,13 @@ def check_required_sections(
     rule = get_or_create_required_sections_rule(db)
     
     if not rule.is_active:
+        return []
+    
+    # Get language-specific configuration for this rule
+    rule_config = get_qc_rule_config("REQUIRED_SECTIONS", language)
+    
+    # Check if rule is enabled for this language
+    if not rule_config.get("enabled", True):
         return []
     
     # Загрузить документ
@@ -68,6 +80,18 @@ def check_required_sections(
         QCIssue.status == QCIssueStatus.OPEN.value
     ).delete()
     
+    # Use language-specific severity if configured, otherwise use rule default
+    severity_override = rule_config.get("severity")
+    issue_severity = rule.severity
+    if severity_override:
+        # Map string severity to QCRuleSeverity enum value
+        severity_map = {
+            "info": QCRuleSeverity.INFO.value,
+            "warning": QCRuleSeverity.WARNING.value,
+            "error": QCRuleSeverity.ERROR.value,
+        }
+        issue_severity = severity_map.get(severity_override, rule.severity)
+    
     # Создать issues для каждой отсутствующей секции
     issues = []
     for code in missing_codes:
@@ -79,9 +103,9 @@ def check_required_sections(
             document_id=document_id,
             section_id=None,
             rule_id=rule.id,
-            severity=rule.severity,
+            severity=issue_severity,
             status=QCIssueStatus.OPEN.value,
-            message=f"Отсутствует обязательная секция: {section_title} ({code})"
+            message=t("QC_MISSING_SECTION", language, section_title=section_title, code=code)
         )
         db.add(issue)
         issues.append(issue)
@@ -98,10 +122,17 @@ def check_required_sections(
 def run_qc_rules_for_document(
     db: Session,
     document_id: int,
-    study_id: int
+    study_id: int,
+    language: str = "ru",
 ) -> list[QCIssue]:
     """
     Запустить все активные QC правила для документа.
+    
+    Args:
+        db: Database session
+        document_id: ID of the OutputDocument to check
+        study_id: ID of the study
+        language: Language code ("ru" or "en") for language-specific rule sets
     
     Returns:
         Список всех созданных QCIssue
@@ -109,7 +140,7 @@ def run_qc_rules_for_document(
     all_issues = []
     
     # Запустить проверку обязательных секций
-    issues = check_required_sections(db, document_id, study_id)
+    issues = check_required_sections(db, document_id, study_id, language=language)
     all_issues.extend(issues)
     
     # Здесь можно добавить другие правила в будущем

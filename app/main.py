@@ -6,14 +6,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
 from app.core.config import settings
-from app.core.middleware import CorrelationIdMiddleware, CorrelationIdFilter
+from app.core.middleware import CorrelationIdMiddleware, CorrelationIdFilter, CorrelationIdFormatter
 
 # Configure logging based on environment
 log_level = logging.WARNING if settings.app_env.lower() == "prod" else logging.INFO
+
+# Create handler with custom formatter
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(CorrelationIdFormatter(
+    '%(asctime)s - %(name)s - %(levelname)s - [%(correlation_id)s] - %(message)s'
+))
+
+# Configure root logger
 logging.basicConfig(
     level=log_level,
-    format='%(asctime)s - %(name)s - %(levelname)s - [%(correlation_id)s] - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[handler]
 )
 
 # Apply correlation_id filter to root logger
@@ -34,6 +41,7 @@ from app.api.v1.templates import router as templates_router
 from app.api.v1.rag import router as rag_router
 from app.api.v1.qc import router as qc_router
 from app.api.v1.documents import router as documents_router
+from app.api.v1.users import router as users_router
 
 app = FastAPI(
     title="ClinApp Backend",
@@ -174,6 +182,7 @@ except Exception as e:
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
+app.include_router(users_router, prefix="/api/v1", tags=["users"])
 app.include_router(studies_router, prefix="/api/v1", tags=["studies"])
 app.include_router(csr_router, prefix="/api/v1", tags=["csr"])
 app.include_router(output_router, prefix="/api/v1", tags=["output"])

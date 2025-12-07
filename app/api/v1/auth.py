@@ -49,6 +49,7 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         email=user_in.email,
         hashed_password=hashed_password,
         is_active=True,
+        ui_language="en",  # Default language
     )
     db.add(user)
     db.commit()

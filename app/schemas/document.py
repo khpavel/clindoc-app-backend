@@ -16,6 +16,8 @@ class DocumentBase(BaseModel):
     template_code: str | None = None
     status: str = "draft"
     current_version_label: str | None = None
+    # Content language of the document ("ru" or "en")
+    language: str = "ru"
     
     @field_validator("type")
     @classmethod
@@ -40,6 +42,8 @@ class DocumentCreate(BaseModel):
     template_code: str | None = None
     status: str = "draft"
     current_version_label: str | None = None
+    # Content language of the document ("ru" or "en")
+    language: str = "ru"
     
     @field_validator("type")
     @classmethod

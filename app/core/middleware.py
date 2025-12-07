@@ -20,6 +20,17 @@ class CorrelationIdFilter(logging.Filter):
         return True
 
 
+class CorrelationIdFormatter(logging.Formatter):
+    """Custom formatter that safely handles correlation_id field."""
+    
+    def format(self, record):
+        # Ensure correlation_id is set on the record before formatting
+        if not hasattr(record, 'correlation_id'):
+            correlation_id = correlation_id_ctx.get()
+            record.correlation_id = correlation_id if correlation_id else "N/A"
+        return super().format(record)
+
+
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     """
     Middleware to add correlation_id to each request.

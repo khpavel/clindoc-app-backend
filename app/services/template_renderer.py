@@ -43,9 +43,20 @@ def render_template_string(
 def render_template_content(
     template: Template,
     context: dict[str, Any],
+    language: str = "ru",
 ) -> tuple[str, dict[str, Any], list[str]]:
     """
     Convenience wrapper around render_template_string for Template instances.
+    
+    Args:
+        template: Template instance to render
+        context: Dictionary of variables for template substitution
+        language: Language code ("ru" or "en") - accepted for future language-specific template logic
+    
+    Returns:
+        Tuple of (rendered_text, used_variables, missing_variables)
     """
+    # Note: language parameter is accepted but not yet used in template rendering
+    # This prepares for future language-specific template processing
     return render_template_string(template.content, context)
 

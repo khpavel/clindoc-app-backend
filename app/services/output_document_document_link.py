@@ -53,6 +53,7 @@ def get_or_create_output_document_for_study(study_id: int, user: User, db: Sessi
             type="csr",
             title=title,
             status="draft",
+            language="ru",  # Default language, can be overridden when creating Document explicitly
             created_by=user.id,
         )
         db.add(document)
@@ -109,11 +110,13 @@ def get_or_create_output_document_for_document(document: Document, user: User, d
         return existing_output
     
     # Create a new OutputDocument
+    # Inherit language from the Document, defaulting to "ru" if not set
     output_document = OutputDocument(
         study_id=document.study_id,
         title=document.title,
         status=document.status or "draft",
         document_id=document.id,
+        language=getattr(document, 'language', 'ru') or 'ru',  # Inherit from Document, default to "ru"
     )
     db.add(output_document)
     db.flush()  # Flush to get the document ID

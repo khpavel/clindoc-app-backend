@@ -9,6 +9,7 @@ from app.core.storage import build_study_source_path, delete_file
 from app.db.session import get_db, SessionLocal
 from app.deps.auth import get_current_active_user
 from app.deps.study_access import get_study_for_user_or_403, verify_study_editor_access, verify_study_management_access
+from app.deps.language import get_request_language
 from app.models.source import SourceDocument
 from app.models.rag import RagChunk
 from app.models.study import Study
@@ -209,6 +210,7 @@ def delete_source_document(
     source_document_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    language: str = Depends(get_request_language),
 ):
     """
     Soft delete a source document.
@@ -228,7 +230,7 @@ def delete_source_document(
         )
     
     # Verify user has editor access (owner or editor role) to the study
-    verify_study_editor_access(source_doc.study_id, current_user.id, db)
+    verify_study_editor_access(source_doc.study_id, current_user.id, db, language=language)
     
     # Soft delete: update status and flags
     source_doc.status = "archived"
@@ -253,6 +255,7 @@ def permanent_delete_source_document(
     source_document_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    language: str = Depends(get_request_language),
 ):
     """
     Permanently delete a source document, its RAG chunks and stored file.
@@ -275,7 +278,7 @@ def permanent_delete_source_document(
         )
     
     # Verify user has owner access (only owners can permanently delete)
-    verify_study_management_access(source_doc.study_id, current_user.id, db)
+    verify_study_management_access(source_doc.study_id, current_user.id, db, language=language)
     
     # Store values before deletion for cleanup and logging
     storage_path_to_delete = source_doc.storage_path
@@ -311,6 +314,7 @@ def restore_source_document(
     source_document_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    language: str = Depends(get_request_language),
 ):
     """
     Restore a previously archived source document back to active state.
@@ -338,7 +342,7 @@ def restore_source_document(
         )
     
     # Verify user has editor access (owner or editor role) to the study
-    verify_study_editor_access(source_doc.study_id, current_user.id, db)
+    verify_study_editor_access(source_doc.study_id, current_user.id, db, language=language)
     
     # Determine is_current value using helper function
     should_be_current = _determine_is_current_on_restore(

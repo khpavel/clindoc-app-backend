@@ -15,6 +15,7 @@ async def generate_section_text_stub(
     prompt: str | None = None,
     max_tokens: int | None = 1024,
     temperature: float | None = 0.2,
+    language: str = "ru",
 ) -> tuple[str, str]:
     """
     Stub implementation for text generation. Returns (generated_text, model_name).
@@ -34,6 +35,7 @@ async def generate_section_text_real(
     prompt: str | None = None,
     max_tokens: int | None = 1024,
     temperature: float | None = 0.2,
+    language: str = "ru",
 ) -> tuple[str, str]:
     """
     Real LLM implementation that calls external LLM via HTTP.

@@ -48,6 +48,8 @@ class OutputDocumentRead(BaseModel):
     study_id: int
     title: str
     status: str
+    # Content language of the document ("ru" or "en")
+    language: str = "ru"
     sections: list[OutputSectionRead] = []
 
     class Config:
